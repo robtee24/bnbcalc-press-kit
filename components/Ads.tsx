@@ -83,7 +83,7 @@ export default function Ads({ type }: AdsProps) {
   ];
 
   if (loading) {
-    return <div className="text-center py-8">Loading...</div>;
+    return <LoadingIcon />;
   }
 
   return (

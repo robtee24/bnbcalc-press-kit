@@ -38,7 +38,7 @@ export default function Media({ type }: MediaProps) {
   };
 
   if (loading) {
-    return <div className="text-center py-8">Loading...</div>;
+    return <LoadingIcon />;
   }
 
   return (

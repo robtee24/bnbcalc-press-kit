@@ -296,7 +296,7 @@ export default function SearchByCity({ initialCity, showBackButton, onBack }: Se
         )}
       </div>
 
-      {loading && <div className="text-center py-8">Loading city data...</div>}
+      {loading && <LoadingIcon />}
 
       {!selectedCity && !loading && averages && (
         <div className="space-y-6">

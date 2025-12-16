@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import LoadingIcon from './LoadingIcon';
 import React from 'react';
 
 interface CityRanking {

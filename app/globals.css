@@ -2,6 +2,57 @@
 @tailwind components;
 @tailwind utilities;
 
+@keyframes walk-in {
+  0% {
+    transform: translateX(-40px) translateY(0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  40% {
+    transform: translateX(0) translateY(0);
+  }
+  50% {
+    transform: translateX(0) translateY(-5px);
+  }
+  60% {
+    transform: translateX(0) translateY(0);
+  }
+  100% {
+    transform: translateX(0) translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes walk-out {
+  0% {
+    transform: translateX(0) translateY(0);
+    opacity: 1;
+  }
+  50% {
+    transform: translateX(0) translateY(-5px);
+  }
+  60% {
+    transform: translateX(0) translateY(0);
+  }
+  100% {
+    transform: translateX(40px) translateY(0);
+    opacity: 0;
+  }
+}
+
+@layer utilities {
+  .animate-walk-in {
+    animation: walk-in 2s ease-in-out infinite;
+  }
+  
+  .animate-walk-out {
+    animation: walk-out 2s ease-in-out infinite;
+    animation-delay: 1s;
+  }
+}
+
 :root {
   --background: #ffffff;
   --foreground: #171717;

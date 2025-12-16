@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import AdminLogin from '@/components/admin/AdminLogin';
 import AdminDashboard from '@/components/admin/AdminDashboard';
+import LoadingIcon from '@/components/LoadingIcon';
 
 export default function AdminPage() {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
@@ -35,7 +36,11 @@ export default function AdminPage() {
   };
 
   if (authenticated === null) {
-    return <div className="flex items-center justify-center h-screen">Loading...</div>;
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <LoadingIcon />
+      </div>
+    );
   }
 
   if (!authenticated) {
