@@ -1,0 +1,49 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import AdminLogin from '@/components/admin/AdminLogin';
+import AdminDashboard from '@/components/admin/AdminDashboard';
+
+export default function AdminPage() {
+  const [authenticated, setAuthenticated] = useState<boolean | null>(null);
+  const router = useRouter();
+
+  useEffect(() => {
+    checkAuth();
+  }, []);
+
+  const checkAuth = async () => {
+    try {
+      const response = await fetch('/api/auth/check');
+      const data = await response.json();
+      setAuthenticated(data.authenticated);
+    } catch (error) {
+      setAuthenticated(false);
+    }
+  };
+
+  const handleLogin = () => {
+    setAuthenticated(true);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      setAuthenticated(false);
+    } catch (error) {
+      console.error('Error logging out:', error);
+    }
+  };
+
+  if (authenticated === null) {
+    return <div className="flex items-center justify-center h-screen">Loading...</div>;
+  }
+
+  if (!authenticated) {
+    return <AdminLogin onLogin={handleLogin} />;
+  }
+
+  return <AdminDashboard onLogout={handleLogout} />;
+}
+

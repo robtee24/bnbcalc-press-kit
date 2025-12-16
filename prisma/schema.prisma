@@ -1,0 +1,67 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Article {
+  id          String   @id @default(cuid())
+  title       String
+  ogImage     String?
+  metaDescription String?
+  url         String   @unique
+  category    String   // "national" or "local"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+}
+
+model CityData {
+  id                  String   @id @default(cuid())
+  city                String
+  state               String?
+  grossYield          Float?
+  grossYieldRank      Int?
+  totalRevenue        Float?
+  totalRevenueRank    Int?
+  totalListings       Int?
+  totalListingsRank   Int?
+  revenuePerListing   Float?
+  revenuePerListingRank Int?
+  occupancy           Float?
+  occupancyRank      Int?
+  nightlyRate         Float?
+  nightlyRateRank    Int?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([city])
+}
+
+model Media {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  url         String
+  type        String   // "image" or "video"
+  category    String   @default("media") // "media" or "ads"
+  platform    String?  // "meta", "reddit", "linkedin", "google" (for ads only)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ColumnMapping {
+  id              String   @id @default(cuid())
+  columnName      String   // The column name in the CSV
+  mappedField     String   // The field it maps to (e.g., "city", "grossYield")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
