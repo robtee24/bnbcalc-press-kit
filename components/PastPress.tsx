@@ -43,7 +43,7 @@ export default function PastPress({ category }: PastPressProps) {
   return (
     <div>
       <h1 className="text-3xl font-bold mb-6">
-        {category === 'national' ? 'National News' : 'Local News'}
+        {category === 'national' ? 'National' : 'Local'}
       </h1>
       {articles.length === 0 ? (
         <p className="text-gray-600">No articles found.</p>

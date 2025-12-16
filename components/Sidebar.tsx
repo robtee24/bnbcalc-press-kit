@@ -51,7 +51,7 @@ export default function Sidebar({
                       : 'text-gray-700 hover:bg-gray-100'
                   }`}
                 >
-                  National News
+                  National
                 </button>
                 <button
                   onClick={() => onMenuClick('local-news')}
@@ -61,7 +61,7 @@ export default function Sidebar({
                       : 'text-gray-700 hover:bg-gray-100'
                   }`}
                 >
-                  Local News
+                  Local
                 </button>
               </div>
             )}

@@ -115,8 +115,8 @@ export default function PastPressAdmin() {
               onChange={(e) => setCategory(e.target.value as 'national' | 'local')}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="national">National News</option>
-              <option value="local">Local News</option>
+              <option value="national">National</option>
+              <option value="local">Local</option>
             </select>
           </div>
           <button
@@ -131,7 +131,7 @@ export default function PastPressAdmin() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-white p-6 rounded-lg shadow">
-          <h2 className="text-xl font-bold mb-4">National News</h2>
+          <h2 className="text-xl font-bold mb-4">National</h2>
           <div className="space-y-4">
             {nationalArticles.map((article) => (
               <div key={article.id} className="border-b pb-4">
@@ -152,7 +152,7 @@ export default function PastPressAdmin() {
         </div>
 
         <div className="bg-white p-6 rounded-lg shadow">
-          <h2 className="text-xl font-bold mb-4">Local News</h2>
+          <h2 className="text-xl font-bold mb-4">Local</h2>
           <div className="space-y-4">
             {localArticles.map((article) => (
               <div key={article.id} className="border-b pb-4">
