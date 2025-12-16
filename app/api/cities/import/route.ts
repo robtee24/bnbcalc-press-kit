@@ -15,8 +15,16 @@ export async function POST(request: NextRequest) {
     const { data, columnMapping } = await request.json();
 
     // Delete all previously uploaded city data before importing new data
-    const deletedCount = await prisma.cityData.deleteMany({});
-    console.log(`Deleted ${deletedCount.count} existing city records`);
+    // Use a raw query to avoid prepared statement issues with connection pooling
+    try {
+      await prisma.$executeRaw`DELETE FROM "CityData"`;
+      console.log('Deleted all existing city records');
+    } catch (deleteError: any) {
+      // If raw query fails, try deleteMany as fallback
+      console.warn('Raw delete failed, trying deleteMany:', deleteError);
+      const deletedCount = await prisma.cityData.deleteMany({});
+      console.log(`Deleted ${deletedCount.count} existing city records`);
+    }
 
     // Validate that city column is mapped
     const cityMapped = Object.values(columnMapping).includes('city');

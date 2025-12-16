@@ -57,10 +57,16 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json(article);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating article:', error);
+    const errorMessage = error?.message || 'Internal server error';
+    const errorDetails = error?.toString() || 'Unknown error';
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { 
+        error: 'Error creating article',
+        message: errorMessage,
+        details: errorDetails 
+      },
       { status: 500 }
     );
   }
