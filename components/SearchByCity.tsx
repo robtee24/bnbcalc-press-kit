@@ -195,6 +195,33 @@ export default function SearchByCity({ initialCity, showBackButton, onBack }: Se
       return avg.toLocaleString(undefined, { maximumFractionDigits: 0 });
     };
 
+    // Extract numeric value from formatted string or use number directly
+    const getNumericValue = (): number | null => {
+      if (value === null) return null;
+      if (typeof value === 'number') return value;
+      // Parse formatted strings like "12.34%" or "$1,234"
+      const cleaned = value.toString().replace(/[$,%]/g, '');
+      const parsed = parseFloat(cleaned);
+      return isNaN(parsed) ? null : parsed;
+    };
+
+    const numericValue = getNumericValue();
+    
+    // Determine decimals based on valueType and title
+    const getDecimals = (): number => {
+      if (valueType === 'percentage') {
+        return title === 'Occupancy' ? 1 : 2;
+      }
+      if (valueType === 'currency' || valueType === 'currencyNoSymbol') {
+        return title === 'Nightly Rate' ? 2 : 0;
+      }
+      return 0;
+    };
+
+    const decimals = getDecimals();
+    const prefix = (valueType === 'currency' || valueType === 'currencyNoSymbol') ? '$' : '';
+    const suffix = valueType === 'percentage' ? '%' : '';
+
     return (
       <div className="bg-white rounded-lg shadow-md p-6">
         <div className="flex items-center justify-between mb-2">
@@ -209,7 +236,16 @@ export default function SearchByCity({ initialCity, showBackButton, onBack }: Se
         <div className="space-y-2">
           <div>
             <span className="text-2xl font-bold">
-              {value !== null ? (typeof value === 'number' ? value.toLocaleString() : value) : 'N/A'}
+              {numericValue !== null ? (
+                <AnimatedNumber 
+                  value={numericValue} 
+                  decimals={decimals}
+                  prefix={prefix}
+                  suffix={suffix}
+                />
+              ) : (
+                'N/A'
+              )}
             </span>
             {average !== null && (
               <span className="ml-2 text-xs text-gray-400 font-normal">
@@ -306,7 +342,7 @@ export default function SearchByCity({ initialCity, showBackButton, onBack }: Se
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <MetricCard
               title="Gross Yield"
-              value={averages.grossYield ? `${averages.grossYield.toFixed(2)}%` : null}
+              value={averages.grossYield}
               rank={null}
               tooltip="This is the metric to determine the average return on investment for a property. This is a calculation using the average annual return over the purchase price of the property."
               description="This represents the national average gross yield across all markets, providing a benchmark for comparing individual city performance."
@@ -316,7 +352,7 @@ export default function SearchByCity({ initialCity, showBackButton, onBack }: Se
             
             <MetricCard
               title="Total Revenue"
-              value={averages.totalRevenue ? `$${averages.totalRevenue.toLocaleString()}` : null}
+              value={averages.totalRevenue}
               rank={null}
               tooltip="This is total revenue of Airbnbs in this market."
               description="This represents the national average total revenue across all markets, indicating the overall economic activity in the short-term rental industry."
@@ -336,7 +372,7 @@ export default function SearchByCity({ initialCity, showBackButton, onBack }: Se
             
             <MetricCard
               title="Revenue Per Listing"
-              value={averages.revenuePerListing ? `$${averages.revenuePerListing.toLocaleString()}` : null}
+              value={averages.revenuePerListing}
               rank={null}
               tooltip="The average revenue a listing generates per year in this market."
               description="This represents the national average revenue per listing, indicating typical host profitability across markets."
@@ -346,7 +382,7 @@ export default function SearchByCity({ initialCity, showBackButton, onBack }: Se
             
             <MetricCard
               title="Occupancy"
-              value={averages.occupancy ? `${averages.occupancy.toFixed(1)}%` : null}
+              value={averages.occupancy}
               rank={null}
               tooltip="This is the average number of nights per year the listing is occupied shown as a percentage."
               description="This represents the national average occupancy rate, showing typical demand levels across short-term rental markets."
@@ -356,7 +392,7 @@ export default function SearchByCity({ initialCity, showBackButton, onBack }: Se
             
             <MetricCard
               title="Nightly Rate"
-              value={averages.nightlyRate ? `$${averages.nightlyRate.toFixed(2)}` : null}
+              value={averages.nightlyRate}
               rank={null}
               tooltip="This is the average price a home rents per night in the market."
               description="This represents the national average nightly rate, indicating typical pricing across markets."
@@ -390,7 +426,7 @@ export default function SearchByCity({ initialCity, showBackButton, onBack }: Se
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <MetricCard
               title="Gross Yield"
-              value={selectedCity.grossYield ? `${selectedCity.grossYield.toFixed(2)}%` : null}
+              value={selectedCity.grossYield}
               rank={selectedCity.grossYieldRank}
               tooltip="This is the metric to determine the average return on investment for a property. This is a calculation using the average annual return over the purchase price of the property."
               description={getMetricDescription('grossYield', selectedCity.grossYield, selectedCity.grossYieldRank)}
@@ -400,7 +436,7 @@ export default function SearchByCity({ initialCity, showBackButton, onBack }: Se
             
             <MetricCard
               title="Total Revenue"
-              value={selectedCity.totalRevenue ? `$${selectedCity.totalRevenue.toLocaleString()}` : null}
+              value={selectedCity.totalRevenue}
               rank={selectedCity.totalRevenueRank}
               tooltip="This is total revenue of Airbnbs in this market."
               description={getMetricDescription('totalRevenue', selectedCity.totalRevenue, selectedCity.totalRevenueRank)}
@@ -420,7 +456,7 @@ export default function SearchByCity({ initialCity, showBackButton, onBack }: Se
             
             <MetricCard
               title="Revenue Per Listing"
-              value={selectedCity.revenuePerListing ? `$${selectedCity.revenuePerListing.toLocaleString()}` : null}
+              value={selectedCity.revenuePerListing}
               rank={selectedCity.revenuePerListingRank}
               tooltip="The average revenue a listing generates per year in this market."
               description={getMetricDescription('revenuePerListing', selectedCity.revenuePerListing, selectedCity.revenuePerListingRank)}
@@ -430,7 +466,7 @@ export default function SearchByCity({ initialCity, showBackButton, onBack }: Se
             
             <MetricCard
               title="Occupancy"
-              value={selectedCity.occupancy ? `${selectedCity.occupancy.toFixed(1)}%` : null}
+              value={selectedCity.occupancy}
               rank={selectedCity.occupancyRank}
               tooltip="This is the average number of nights per year the listing is occupied shown as a percentage."
               description={getMetricDescription('occupancy', selectedCity.occupancy, selectedCity.occupancyRank)}
@@ -440,7 +476,7 @@ export default function SearchByCity({ initialCity, showBackButton, onBack }: Se
             
             <MetricCard
               title="Nightly Rate"
-              value={selectedCity.nightlyRate ? `$${selectedCity.nightlyRate.toFixed(2)}` : null}
+              value={selectedCity.nightlyRate}
               rank={selectedCity.nightlyRateRank}
               tooltip="This is the average price a home rents per night in the market."
               description={getMetricDescription('nightlyRate', selectedCity.nightlyRate, selectedCity.nightlyRateRank)}

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import LoadingIcon from './LoadingIcon';
+import AnimatedNumber from './AnimatedNumber';
 import React from 'react';
 
 interface CityRanking {
@@ -72,22 +73,23 @@ export default function RankingDetail({ metric, onBack, onViewCity }: RankingDet
     }
   };
 
-  const formatValue = (value: number | null, metricType: string): string => {
+  const formatValue = (value: number | null, metricType: string): JSX.Element | string => {
     if (value === null) return 'N/A';
     
     switch (metricType) {
       case 'gross-yield':
+        return <AnimatedNumber value={value} decimals={2} suffix="%" />;
       case 'occupancy':
-        return `${value.toFixed(metricType === 'occupancy' ? 1 : 2)}%`;
+        return <AnimatedNumber value={value} decimals={1} suffix="%" />;
       case 'total-revenue':
       case 'revenue-per-listing':
-        return `$${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+        return <AnimatedNumber value={value} decimals={0} prefix="$" />;
       case 'nightly-rate':
-        return `$${value.toFixed(2)}`;
+        return <AnimatedNumber value={value} decimals={2} prefix="$" />;
       case 'total-listings':
-        return value.toLocaleString();
+        return <AnimatedNumber value={value} decimals={0} />;
       default:
-        return String(value);
+        return <AnimatedNumber value={value} decimals={0} />;
     }
   };
 
