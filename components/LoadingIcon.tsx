@@ -2,7 +2,7 @@
 
 export default function LoadingIcon() {
   return (
-    <div className="flex flex-col items-center justify-center py-8">
+    <div className="min-h-screen flex flex-col items-center justify-center py-8">
       <div className="relative w-32 h-32 mb-4">
         {/* House */}
         <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2">
@@ -29,7 +29,7 @@ export default function LoadingIcon() {
         </div>
 
         {/* Person walking in (from left) */}
-        <div className="absolute bottom-8 left-4 animate-walk-in">
+        <div className="absolute bottom-1 left-4 animate-walk-in">
           <svg
             width="24"
             height="32"
@@ -60,7 +60,7 @@ export default function LoadingIcon() {
         </div>
 
         {/* Person walking out (to right) */}
-        <div className="absolute bottom-8 right-4 animate-walk-out">
+        <div className="absolute bottom-1 right-4 animate-walk-out">
           <svg
             width="24"
             height="32"
@@ -94,11 +94,10 @@ export default function LoadingIcon() {
         <img 
           src="/bnbcalc-logo.png" 
           alt="BNBCalc Logo" 
-          className="h-8 w-auto mx-auto"
+          className="h-16 w-auto mx-auto"
           style={{ mixBlendMode: 'multiply' }}
         />
       </div>
-      <p className="text-gray-600 text-sm mt-2">Loading...</p>
     </div>
   );
 }

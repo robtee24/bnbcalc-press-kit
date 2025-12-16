@@ -62,7 +62,9 @@ export default function PastPress({ category }: PastPressProps) {
                 <div className="relative w-full h-48">
                   <Image
                     src={article.ogImage}
-                    alt={article.title}
+                    alt={article.title && article.title.trim() !== '' 
+                      ? article.title 
+                      : 'Untitled Article'}
                     fill
                     className="object-cover"
                   />
@@ -70,7 +72,9 @@ export default function PastPress({ category }: PastPressProps) {
               )}
               <div className="p-4">
                 <h2 className="text-xl font-semibold mb-2 line-clamp-2">
-                  {article.title}
+                  {article.title && article.title.trim() !== '' 
+                    ? article.title 
+                    : 'Untitled Article - Click to read'}
                 </h2>
                 {article.metaDescription && (
                   <p className="text-gray-600 text-sm line-clamp-3">

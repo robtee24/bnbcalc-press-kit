@@ -15,7 +15,19 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: 'desc' },
     });
 
-    return NextResponse.json(articles);
+    // Sort articles: untitled ones last, then by createdAt desc
+    const sortedArticles = articles.sort((a, b) => {
+      const aIsUntitled = !a.title || a.title.trim() === '';
+      const bIsUntitled = !b.title || b.title.trim() === '';
+      
+      if (aIsUntitled && !bIsUntitled) return 1;
+      if (!aIsUntitled && bIsUntitled) return -1;
+      
+      // Both have titles or both are untitled, maintain createdAt order
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+
+    return NextResponse.json(sortedArticles);
   } catch (error) {
     console.error('Error fetching articles:', error);
     return NextResponse.json(
