@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import MediaModal from './MediaModal';
+import LoadingIcon from './LoadingIcon';
 
 interface MediaItem {
   id: string;
