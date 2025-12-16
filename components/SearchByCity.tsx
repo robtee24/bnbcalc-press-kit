@@ -1,6 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import LoadingIcon from './LoadingIcon';
+import AnimatedNumber from './AnimatedNumber';
 
 interface CityData {
   id: string;
@@ -41,6 +43,7 @@ export default function SearchByCity({ initialCity, showBackButton, onBack }: Se
   const [selectedCity, setSelectedCity] = useState<CityData | null>(null);
   const [pressRelease, setPressRelease] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadingAverages, setLoadingAverages] = useState(true);
   const [averages, setAverages] = useState<Averages | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
 
@@ -98,6 +101,7 @@ export default function SearchByCity({ initialCity, showBackButton, onBack }: Se
   }, [showDropdown]);
 
   const fetchAverages = async () => {
+    setLoadingAverages(true);
     try {
       const response = await fetch('/api/cities/averages');
       if (response.ok) {
@@ -106,6 +110,8 @@ export default function SearchByCity({ initialCity, showBackButton, onBack }: Se
       }
     } catch (error) {
       console.error('Error fetching averages:', error);
+    } finally {
+      setLoadingAverages(false);
     }
   };
 
@@ -281,6 +287,40 @@ export default function SearchByCity({ initialCity, showBackButton, onBack }: Se
     
     return descriptions[metric] || 'This metric provides important insights into market performance.';
   };
+
+  // Show loading icon when fetching averages and no city is selected
+  if (loadingAverages && !selectedCity && !loading) {
+    return (
+      <div>
+        {showBackButton && onBack && (
+          <button
+            onClick={onBack}
+            className="mb-4 px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+          >
+            ← Back to Rankings
+          </button>
+        )}
+        <LoadingIcon />
+      </div>
+    );
+  }
+
+  // Show loading icon when loading city data
+  if (loading) {
+    return (
+      <div>
+        {showBackButton && onBack && (
+          <button
+            onClick={onBack}
+            className="mb-4 px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+          >
+            ← Back to Rankings
+          </button>
+        )}
+        <LoadingIcon />
+      </div>
+    );
+  }
 
   return (
     <div>

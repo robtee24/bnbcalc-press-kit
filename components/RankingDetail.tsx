@@ -73,7 +73,7 @@ export default function RankingDetail({ metric, onBack, onViewCity }: RankingDet
     }
   };
 
-  const formatValue = (value: number | null, metricType: string): JSX.Element | string => {
+  const formatValue = (value: number | null, metricType: string): React.ReactNode => {
     if (value === null) return 'N/A';
     
     switch (metricType) {
@@ -114,13 +114,15 @@ export default function RankingDetail({ metric, onBack, onViewCity }: RankingDet
   if (loading) {
     return (
       <div>
-        <button
-          onClick={onBack}
-          className="mb-4 px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
-        >
-          ← Back to Rankings
-        </button>
-        <div className="text-center py-8">Loading rankings...</div>
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="mb-4 px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+          >
+            ← Back to Rankings
+          </button>
+        )}
+        <LoadingIcon />
       </div>
     );
   }
