@@ -28,12 +28,19 @@ export default function PastPressAdmin() {
         fetch('/api/articles?category=national'),
         fetch('/api/articles?category=local'),
       ]);
+      
+      if (!nationalRes.ok || !localRes.ok) {
+        throw new Error('Failed to fetch articles');
+      }
+      
       const national = await nationalRes.json();
       const local = await localRes.json();
-      setNationalArticles(national);
-      setLocalArticles(local);
+      setNationalArticles(Array.isArray(national) ? national : []);
+      setLocalArticles(Array.isArray(local) ? local : []);
     } catch (error) {
       console.error('Error fetching articles:', error);
+      setNationalArticles([]);
+      setLocalArticles([]);
     }
   };
 
