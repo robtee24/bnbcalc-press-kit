@@ -84,12 +84,20 @@ export default function AdsAdmin() {
           body: formData,
         });
 
-        if (response.ok) {
-          successCount++;
-        } else {
-          errorCount++;
-          console.error(`Error uploading ${file.name}`);
-        }
+          if (response.ok) {
+            successCount++;
+          } else {
+            errorCount++;
+            const errorText = await response.text().catch(() => 'Unknown error');
+            let errorMessage = 'Unknown error';
+            try {
+              const errorData = JSON.parse(errorText);
+              errorMessage = errorData.message || errorData.error || errorMessage;
+            } catch {
+              errorMessage = errorText || `HTTP ${response.status}: ${response.statusText}`;
+            }
+            console.error(`Error uploading ${file.name}:`, errorMessage);
+          }
       }
 
       if (successCount > 0) {

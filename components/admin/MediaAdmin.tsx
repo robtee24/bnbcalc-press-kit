@@ -79,12 +79,21 @@ export default function MediaAdmin() {
           successCount++;
         } else {
           errorCount++;
-          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-          console.error(`Error uploading ${file.name}:`, errorData.error || errorData.message || 'Unknown error');
-          // Store error for display
+          const errorText = await response.text().catch(() => 'Unknown error');
+          let errorMessage = 'Unknown error';
+          try {
+            const errorData = JSON.parse(errorText);
+            errorMessage = errorData.message || errorData.error || errorMessage;
+            if (errorData.details) {
+              errorMessage += `\n\nDetails: ${errorData.details}`;
+            }
+          } catch {
+            errorMessage = errorText || `HTTP ${response.status}: ${response.statusText}`;
+          }
+          console.error(`Error uploading ${file.name}:`, errorMessage);
+          // Show first error in alert
           if (errorCount === 1) {
-            // Show first error in alert
-            alert(`Error uploading ${file.name}: ${errorData.error || errorData.message || 'Unknown error'}`);
+            alert(`Error uploading ${file.name}: ${errorMessage}`);
           }
         }
       }

@@ -91,17 +91,45 @@ export async function POST(request: NextRequest) {
       const fileExt = file.name.split('.').pop();
       const filePath = `${type}s/${filename}`;
       
+      console.log('Uploading to Supabase:', {
+        bucket: 'media',
+        path: filePath,
+        size: buffer.length,
+        contentType: file.type,
+        hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+        hasAnonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      });
+
       const { data, error } = await supabase.storage
         .from('media')
         .upload(filePath, buffer, {
           contentType: file.type,
           upsert: false,
+          cacheControl: '3600',
         });
 
       if (error) {
         console.error('Supabase upload error:', error);
+        console.error('Error details:', JSON.stringify(error, null, 2));
+        
+        // Provide more helpful error messages
+        let errorMessage = error.message || 'Storage upload failed';
+        if (error.message?.includes('row-level security') || error.message?.includes('RLS')) {
+          errorMessage = 'Row Level Security (RLS) policy violation. Please ensure SUPABASE_SERVICE_ROLE_KEY is set in Vercel environment variables.';
+        } else if (error.message?.includes('permission') || error.message?.includes('unauthorized') || error.message?.includes('403')) {
+          errorMessage = 'Permission denied. Please check Supabase storage bucket permissions and RLS policies.';
+        } else if (error.message?.includes('not found') || error.message?.includes('bucket')) {
+          errorMessage = 'Storage bucket "media" not found. Please create it in Supabase Dashboard > Storage.';
+        }
+        
         return NextResponse.json(
-          { error: 'Failed to upload file to storage', message: error.message || 'Storage upload failed' },
+          { 
+            error: 'Failed to upload file to storage',
+            message: errorMessage,
+            details: error.toString(),
+            errorCode: (error as any).statusCode || (error as any).code,
+            fullError: JSON.stringify(error, Object.getOwnPropertyNames(error))
+          },
           { status: 500 }
         );
       }
