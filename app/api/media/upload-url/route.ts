@@ -258,8 +258,8 @@ export async function POST(request: NextRequest) {
           helpfulMessage = 'A file with this name already exists. Please try again.';
         } else if (error.message?.includes('not found') || error.message?.includes('bucket')) {
           helpfulMessage = 'Storage bucket "media" not found. Please create it in Supabase Dashboard > Storage.';
-        } else if (error.message?.includes('permission') || error.message?.includes('unauthorized') || error.message?.includes('403')) {
-          helpfulMessage = 'Permission denied. The storage bucket may not be public or RLS policies are blocking uploads. Please check Supabase storage bucket permissions. You may need to add SUPABASE_SERVICE_ROLE_KEY to your environment variables.';
+        } else if (error.message?.includes('permission') || error.message?.includes('unauthorized') || error.message?.includes('403') || error.message?.includes('row-level security') || error.message?.includes('RLS')) {
+          helpfulMessage = 'Row Level Security (RLS) policy violation. The anon key is being blocked by RLS policies. Solution: Add SUPABASE_SERVICE_ROLE_KEY to your Vercel environment variables. Get it from Supabase Dashboard > Settings > API > service_role key.';
         } else if (error.message?.includes('401') || error.message?.includes('JWT')) {
           helpfulMessage = 'Authentication failed. Please check your Supabase credentials (NEXT_PUBLIC_SUPABASE_ANON_KEY or SUPABASE_SERVICE_ROLE_KEY).';
         }
