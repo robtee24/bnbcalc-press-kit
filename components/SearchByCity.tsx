@@ -244,7 +244,9 @@ export default function SearchByCity({ initialCity, showBackButton, onBack }: Se
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-lg font-semibold">{title}</h3>
           <div className="relative group">
-            <span className="text-gray-400 cursor-help">ℹ️</span>
+            <div className="w-5 h-5 rounded-full bg-black text-white text-xs font-semibold flex items-center justify-center cursor-help">
+              i
+            </div>
             <div className="absolute right-0 top-6 w-64 p-2 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity z-10">
               {tooltip}
             </div>
