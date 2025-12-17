@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
       if (error) {
         console.error('Supabase upload error:', error);
         return NextResponse.json(
-          { error: 'Failed to upload file to storage' },
+          { error: 'Failed to upload file to storage', message: error.message || 'Storage upload failed' },
           { status: 500 }
         );
       }
@@ -110,10 +110,14 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json(media);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error uploading media:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { 
+        error: 'Internal server error',
+        message: error?.message || 'An unexpected error occurred',
+        details: error?.toString() || 'Unknown error'
+      },
       { status: 500 }
     );
   }

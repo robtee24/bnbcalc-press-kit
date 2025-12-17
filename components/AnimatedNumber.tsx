@@ -15,7 +15,7 @@ export default function AnimatedNumber({
   decimals = 0,
   prefix = '',
   suffix = '',
-  duration = 3000,
+  duration = 2000,
 }: AnimatedNumberProps) {
   const [displayValue, setDisplayValue] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
@@ -57,17 +57,27 @@ export default function AnimatedNumber({
     return <span>—</span>;
   }
 
-  // Format the number with specified decimals
-  const formattedValue = displayValue.toFixed(decimals);
-  
-  // Remove trailing zeros if decimals are specified
-  const finalValue = decimals > 0 
-    ? parseFloat(formattedValue).toFixed(decimals).replace(/\.?0+$/, '')
-    : Math.round(displayValue).toString();
+  // Format the number with commas and specified decimals
+  let formattedValue: string;
+  if (decimals > 0) {
+    // For numbers with decimals, round first then format with commas and decimals
+    const rounded = parseFloat(displayValue.toFixed(decimals));
+    formattedValue = rounded.toLocaleString(undefined, {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    });
+  } else {
+    // For whole numbers, round and format with commas (no decimals)
+    const rounded = Math.round(displayValue);
+    formattedValue = rounded.toLocaleString(undefined, {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    });
+  }
 
   return (
     <span>
-      {prefix}{finalValue}{suffix}
+      {prefix}{formattedValue}{suffix}
     </span>
   );
 }

@@ -75,7 +75,13 @@ export default function MediaAdmin() {
           successCount++;
         } else {
           errorCount++;
-          console.error(`Error uploading ${file.name}`);
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+          console.error(`Error uploading ${file.name}:`, errorData.error || errorData.message || 'Unknown error');
+          // Store error for display
+          if (errorCount === 1) {
+            // Show first error in alert
+            alert(`Error uploading ${file.name}: ${errorData.error || errorData.message || 'Unknown error'}`);
+          }
         }
       }
 

@@ -1,8 +1,19 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import dynamic from 'next/dynamic';
 import LoadingIcon from './LoadingIcon';
 import AnimatedNumber from './AnimatedNumber';
+
+// Dynamically import CityMap to avoid SSR issues with Leaflet
+const CityMap = dynamic(() => import('./CityMap'), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-64 bg-gray-900 rounded-lg flex items-center justify-center mb-6">
+      <div className="text-white">Loading map...</div>
+    </div>
+  ),
+});
 
 interface CityData {
   id: string;
@@ -462,6 +473,9 @@ export default function SearchByCity({ initialCity, showBackButton, onBack }: Se
               Clear & View Averages
             </button>
           </div>
+          
+          {/* City Map Banner */}
+          <CityMap city={selectedCity.city} state={selectedCity.state} />
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <MetricCard
