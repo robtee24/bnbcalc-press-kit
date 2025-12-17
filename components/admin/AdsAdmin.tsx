@@ -128,16 +128,30 @@ export default function AdsAdmin() {
         }),
       });
 
-      if (response.ok) {
-        const result = await response.json();
-        alert(`Image uploaded successfully! Title: ${result.title}`);
-        setUploadUrl('');
-        setUploadPlatform('');
-        fetchAds();
-      } else {
-        const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}: ${response.statusText}` }));
-        alert(`Error uploading image: ${errorData.error || 'Please check the URL'}`);
-      }
+        if (response.ok) {
+          const result = await response.json();
+          alert(`Image uploaded successfully! Title: ${result.title}`);
+          setUploadUrl('');
+          setUploadPlatform('');
+          fetchAds();
+        } else {
+          const errorText = await response.text();
+          let errorMessage = 'Unknown error';
+          try {
+            const errorData = JSON.parse(errorText);
+            errorMessage = errorData.error || errorData.message || errorMessage;
+            if (errorData.details) {
+              errorMessage += `\n\nDetails: ${errorData.details}`;
+            }
+            if (errorData.fullError) {
+              console.error('Full Supabase error:', errorData.fullError);
+            }
+          } catch {
+            errorMessage = errorText || `HTTP ${response.status}: ${response.statusText}`;
+          }
+          console.error('Upload error response:', errorText);
+          alert(`Error uploading image: ${errorMessage}`);
+        }
     } catch (error: any) {
       console.error('Error uploading image from URL:', error);
       const errorMessage = error?.message || 'Network error. Please check your connection and try again.';

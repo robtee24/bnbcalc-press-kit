@@ -205,20 +205,48 @@ export async function POST(request: NextRequest) {
     if (supabase) {
       const filePath = `images/${filename}`;
       
+      console.log('Uploading to Supabase:', {
+        bucket: 'media',
+        path: filePath,
+        size: imageBuffer.length,
+        contentType
+      });
+      
       const { data, error } = await supabase.storage
         .from('media')
         .upload(filePath, imageBuffer, {
           contentType,
           upsert: false,
+          cacheControl: '3600',
         });
 
       if (error) {
         console.error('Supabase upload error:', error);
+        console.error('Error details:', JSON.stringify(error, null, 2));
+        console.error('File size:', imageBuffer.length, 'bytes');
+        console.error('Content type:', contentType);
+        console.error('File path:', filePath);
+        
+        // Provide more helpful error messages
+        let errorMessage = error.message || 'Storage upload failed';
+        if (error.message?.includes('already exists')) {
+          errorMessage = 'A file with this name already exists. Please try again.';
+        } else if (error.message?.includes('not found') || error.message?.includes('bucket')) {
+          errorMessage = 'Storage bucket not found. Please check Supabase storage configuration.';
+        } else if (error.message?.includes('permission') || error.message?.includes('unauthorized')) {
+          errorMessage = 'Permission denied. Please check Supabase storage bucket permissions and RLS policies.';
+        }
+        
         return NextResponse.json(
           { 
             error: 'Failed to upload file to storage',
-            message: error.message || 'Storage upload failed',
-            details: error.toString()
+            message: errorMessage,
+            details: error.toString(),
+            errorCode: (error as any).statusCode || (error as any).code,
+            errorName: (error as any).name,
+            fullError: JSON.stringify(error),
+            fileSize: imageBuffer.length,
+            contentType
           },
           { status: 500 }
         );

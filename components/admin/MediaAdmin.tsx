@@ -129,20 +129,21 @@ export default function MediaAdmin() {
         setUploadUrl('');
         fetchMedia();
       } else {
+        const errorText = await response.text();
         let errorMessage = 'Unknown error';
         try {
-          const errorText = await response.text();
-          try {
-            const errorData = JSON.parse(errorText);
-            errorMessage = errorData.error || errorData.message || errorData.details || errorMessage;
-          } catch {
-            errorMessage = errorText || `HTTP ${response.status}: ${response.statusText}`;
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.error || errorData.message || errorMessage;
+          if (errorData.details) {
+            errorMessage += `\n\nDetails: ${errorData.details}`;
           }
-          console.error('Upload error response:', errorText);
-        } catch (parseError) {
-          console.error('Error parsing error response:', parseError);
-          errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+          if (errorData.fullError) {
+            console.error('Full Supabase error:', errorData.fullError);
+          }
+        } catch {
+          errorMessage = errorText || `HTTP ${response.status}: ${response.statusText}`;
         }
+        console.error('Upload error response:', errorText);
         alert(`Error uploading image: ${errorMessage}`);
       }
     } catch (error: any) {
