@@ -120,6 +120,13 @@ export async function POST(request: NextRequest) {
             urlFilename = urlFilename.replace(/\.[^/.]+$/, '') + '.mp4';
           }
         }
+        
+        // Sanitize filename: remove/replace invalid characters for storage
+        urlFilename = urlFilename
+          .replace(/[^a-zA-Z0-9._-]/g, '_') // Replace invalid chars with underscore
+          .replace(/\s+/g, '_') // Replace spaces with underscore
+          .replace(/_{2,}/g, '_') // Replace multiple underscores with single
+          .replace(/^_+|_+$/g, ''); // Remove leading/trailing underscores
 
         const filename = `${Date.now()}-${urlFilename}`;
         const filePath = `videos/${filename}`;
@@ -280,6 +287,14 @@ export async function POST(request: NextRequest) {
           const urlParts = url.split('/');
           urlFilename = urlParts[urlParts.length - 1].split('?')[0].split('#')[0] || 'image.jpg';
         }
+        
+        // Sanitize filename: remove/replace invalid characters for storage
+        urlFilename = urlFilename
+          .replace(/[^a-zA-Z0-9._-]/g, '_') // Replace invalid chars with underscore
+          .replace(/\s+/g, '_') // Replace spaces with underscore
+          .replace(/_{2,}/g, '_') // Replace multiple underscores with single
+          .replace(/^_+|_+$/g, ''); // Remove leading/trailing underscores
+        
         title = urlFilename.replace(/\.[^/.]+$/, '') || 'Image from URL';
       } catch (fetchError: any) {
         return NextResponse.json(
@@ -337,6 +352,13 @@ export async function POST(request: NextRequest) {
           const urlParts = imageUrlToDownload.split('/');
           urlFilename = urlParts[urlParts.length - 1].split('?')[0].split('#')[0] || 'image.jpg';
         }
+        
+        // Sanitize filename: remove/replace invalid characters for storage
+        urlFilename = urlFilename
+          .replace(/[^a-zA-Z0-9._-]/g, '_') // Replace invalid chars with underscore
+          .replace(/\s+/g, '_') // Replace spaces with underscore
+          .replace(/_{2,}/g, '_') // Replace multiple underscores with single
+          .replace(/^_+|_+$/g, ''); // Remove leading/trailing underscores
       } catch (error: any) {
         console.error('Error extracting/downloading image:', error);
         return NextResponse.json(

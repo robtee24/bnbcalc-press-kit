@@ -81,7 +81,15 @@ export async function POST(request: NextRequest) {
 
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
-    const filename = `${Date.now()}-${file.name}`;
+    
+    // Sanitize filename: remove/replace invalid characters for storage
+    const sanitizedOriginalName = file.name
+      .replace(/[^a-zA-Z0-9._-]/g, '_') // Replace invalid chars with underscore
+      .replace(/\s+/g, '_') // Replace spaces with underscore
+      .replace(/_{2,}/g, '_') // Replace multiple underscores with single
+      .replace(/^_+|_+$/g, ''); // Remove leading/trailing underscores
+    
+    const filename = `${Date.now()}-${sanitizedOriginalName}`;
     let url: string;
 
     // Use Supabase Storage if configured, otherwise use local filesystem (for development)
