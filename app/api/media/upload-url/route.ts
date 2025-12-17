@@ -215,27 +215,24 @@ export async function POST(request: NextRequest) {
         hasAnonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
       });
       
-      // Test if bucket exists first
+      // Test if bucket exists first (but don't fail if check fails - bucket might exist but listBuckets might fail due to permissions)
       try {
         const { data: buckets, error: listError } = await supabase.storage.listBuckets();
         if (listError) {
-          console.error('Error listing buckets:', listError);
+          console.warn('Could not list buckets (this is OK if using service role key):', listError.message);
+          // Don't fail here - the bucket might exist but we just can't list it
+          // We'll try to upload anyway and let that error be more specific
         } else {
           const mediaBucket = buckets?.find(b => b.name === 'media');
           console.log('Media bucket exists:', !!mediaBucket);
           if (!mediaBucket) {
-            return NextResponse.json(
-              { 
-                error: 'Storage bucket not found',
-                message: 'The "media" bucket does not exist in Supabase Storage. Please create it in your Supabase dashboard.',
-                details: 'Go to Supabase Dashboard > Storage > Create bucket named "media" and set it to public.'
-              },
-              { status: 500 }
-            );
+            console.warn('Media bucket not found in list, but will attempt upload anyway');
+            // Don't fail here - try upload and let it fail with a more specific error
           }
         }
       } catch (bucketCheckError) {
-        console.error('Error checking bucket:', bucketCheckError);
+        console.warn('Error checking bucket (will attempt upload anyway):', bucketCheckError);
+        // Continue with upload attempt
       }
       
       const { data, error } = await supabase.storage
