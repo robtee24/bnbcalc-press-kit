@@ -209,8 +209,34 @@ export async function POST(request: NextRequest) {
         bucket: 'media',
         path: filePath,
         size: imageBuffer.length,
-        contentType
+        contentType,
+        supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ? 'configured' : 'missing',
+        hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+        hasAnonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
       });
+      
+      // Test if bucket exists first
+      try {
+        const { data: buckets, error: listError } = await supabase.storage.listBuckets();
+        if (listError) {
+          console.error('Error listing buckets:', listError);
+        } else {
+          const mediaBucket = buckets?.find(b => b.name === 'media');
+          console.log('Media bucket exists:', !!mediaBucket);
+          if (!mediaBucket) {
+            return NextResponse.json(
+              { 
+                error: 'Storage bucket not found',
+                message: 'The "media" bucket does not exist in Supabase Storage. Please create it in your Supabase dashboard.',
+                details: 'Go to Supabase Dashboard > Storage > Create bucket named "media" and set it to public.'
+              },
+              { status: 500 }
+            );
+          }
+        }
+      } catch (bucketCheckError) {
+        console.error('Error checking bucket:', bucketCheckError);
+      }
       
       const { data, error } = await supabase.storage
         .from('media')
@@ -229,24 +255,39 @@ export async function POST(request: NextRequest) {
         
         // Provide more helpful error messages
         let errorMessage = error.message || 'Storage upload failed';
-        if (error.message?.includes('already exists')) {
-          errorMessage = 'A file with this name already exists. Please try again.';
+        let helpfulMessage = errorMessage;
+        
+        if (error.message?.includes('already exists') || error.message?.includes('duplicate')) {
+          helpfulMessage = 'A file with this name already exists. Please try again.';
         } else if (error.message?.includes('not found') || error.message?.includes('bucket')) {
-          errorMessage = 'Storage bucket not found. Please check Supabase storage configuration.';
-        } else if (error.message?.includes('permission') || error.message?.includes('unauthorized')) {
-          errorMessage = 'Permission denied. Please check Supabase storage bucket permissions and RLS policies.';
+          helpfulMessage = 'Storage bucket "media" not found. Please create it in Supabase Dashboard > Storage.';
+        } else if (error.message?.includes('permission') || error.message?.includes('unauthorized') || error.message?.includes('403')) {
+          helpfulMessage = 'Permission denied. The storage bucket may not be public or RLS policies are blocking uploads. Please check Supabase storage bucket permissions. You may need to add SUPABASE_SERVICE_ROLE_KEY to your environment variables.';
+        } else if (error.message?.includes('401') || error.message?.includes('JWT')) {
+          helpfulMessage = 'Authentication failed. Please check your Supabase credentials (NEXT_PUBLIC_SUPABASE_ANON_KEY or SUPABASE_SERVICE_ROLE_KEY).';
         }
+        
+        // Log the full error for debugging
+        console.error('Full Supabase error object:', {
+          message: error.message,
+          statusCode: (error as any).statusCode,
+          error: (error as any).error,
+          name: (error as any).name,
+          stack: (error as any).stack
+        });
         
         return NextResponse.json(
           { 
             error: 'Failed to upload file to storage',
-            message: errorMessage,
+            message: helpfulMessage,
+            originalError: errorMessage,
             details: error.toString(),
             errorCode: (error as any).statusCode || (error as any).code,
             errorName: (error as any).name,
-            fullError: JSON.stringify(error),
+            fullError: JSON.stringify(error, Object.getOwnPropertyNames(error)),
             fileSize: imageBuffer.length,
-            contentType
+            contentType,
+            troubleshooting: 'If this persists, check: 1) Supabase bucket "media" exists and is public, 2) SUPABASE_SERVICE_ROLE_KEY is set in Vercel, 3) Bucket RLS policies allow uploads'
           },
           { status: 500 }
         );
