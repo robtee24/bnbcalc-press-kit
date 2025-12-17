@@ -24,6 +24,10 @@ export default function MediaAdmin() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editDescription, setEditDescription] = useState('');
+  const [showBulkUpload, setShowBulkUpload] = useState(false);
+  const [bulkUrls, setBulkUrls] = useState('');
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number; success: number; failed: number } | null>(null);
 
   useEffect(() => {
     fetchMedia();
@@ -125,12 +129,26 @@ export default function MediaAdmin() {
         setUploadUrl('');
         fetchMedia();
       } else {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        alert(`Error uploading image: ${errorData.error || 'Please check the URL'}`);
+        let errorMessage = 'Unknown error';
+        try {
+          const errorText = await response.text();
+          try {
+            const errorData = JSON.parse(errorText);
+            errorMessage = errorData.error || errorData.message || errorData.details || errorMessage;
+          } catch {
+            errorMessage = errorText || `HTTP ${response.status}: ${response.statusText}`;
+          }
+          console.error('Upload error response:', errorText);
+        } catch (parseError) {
+          console.error('Error parsing error response:', parseError);
+          errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        }
+        alert(`Error uploading image: ${errorMessage}`);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error uploading image from URL:', error);
-      alert('Error uploading image from URL');
+      const errorMessage = error?.message || 'Network error. Please check your connection and try again.';
+      alert(`Error uploading image from URL: ${errorMessage}`);
     } finally {
       setLoading(false);
     }
@@ -186,6 +204,85 @@ export default function MediaAdmin() {
     }
   };
 
+  const handleBulkUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!bulkUrls.trim()) return;
+
+    // Parse URLs from textarea (one per line)
+    const urlLines = bulkUrls
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0 && (line.startsWith('http://') || line.startsWith('https://')))
+      .slice(0, 100); // Limit to 100 URLs
+
+    if (urlLines.length === 0) {
+      alert('Please enter at least one valid URL (starting with http:// or https://)');
+      return;
+    }
+
+    if (urlLines.length > 100) {
+      alert('Maximum 100 URLs allowed. Only the first 100 will be processed.');
+    }
+
+    setBulkLoading(true);
+    setBulkProgress({ current: 0, total: urlLines.length, success: 0, failed: 0 });
+
+    let successCount = 0;
+    let failedCount = 0;
+
+    try {
+      // Process URLs sequentially to avoid overwhelming the server
+      for (let i = 0; i < urlLines.length; i++) {
+        const url = urlLines[i];
+        setBulkProgress({ current: i + 1, total: urlLines.length, success: successCount, failed: failedCount });
+
+        try {
+          const response = await fetch('/api/media/upload-url', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              imageUrl: url,
+              category: 'media',
+              type: 'image',
+            }),
+          });
+
+          if (response.ok) {
+            successCount++;
+          } else {
+            failedCount++;
+            console.error(`Failed to upload ${url}:`, await response.text().catch(() => 'Unknown error'));
+          }
+        } catch (error) {
+          failedCount++;
+          console.error(`Error uploading ${url}:`, error);
+        }
+
+        // Small delay to avoid overwhelming the server
+        if (i < urlLines.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+      }
+
+      setBulkProgress({ current: urlLines.length, total: urlLines.length, success: successCount, failed: failedCount });
+      
+      if (successCount > 0) {
+        alert(`Bulk upload complete! ${successCount} image(s) uploaded successfully${failedCount > 0 ? `, ${failedCount} failed` : ''}.`);
+        setBulkUrls('');
+        setShowBulkUpload(false);
+        fetchMedia();
+      } else {
+        alert(`Bulk upload failed. All ${failedCount} image(s) failed to upload. Please check the URLs and try again.`);
+      }
+    } catch (error) {
+      console.error('Error during bulk upload:', error);
+      alert('Error during bulk upload. Please try again.');
+    } finally {
+      setBulkLoading(false);
+      setTimeout(() => setBulkProgress(null), 3000);
+    }
+  };
+
   const currentMedia = activeTab === 'images' ? images : videos;
 
   return (
@@ -220,9 +317,87 @@ export default function MediaAdmin() {
         
         {/* URL Upload Section - Only for Images */}
         {activeTab === 'images' && (
-          <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-            <h3 className="text-lg font-semibold mb-3">Upload Image from URL</h3>
-            <form onSubmit={handleUrlUpload} className="space-y-3">
+          <div className="mb-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Upload Image from URL</h3>
+              <button
+                type="button"
+                onClick={() => setShowBulkUpload(!showBulkUpload)}
+                className="px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600 text-sm"
+              >
+                {showBulkUpload ? 'Cancel Bulk Add' : 'Bulk Add'}
+              </button>
+            </div>
+
+            {/* Bulk Upload Modal */}
+            {showBulkUpload && (
+              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <h4 className="font-semibold mb-3">Bulk Add Images (up to 100 URLs)</h4>
+                <form onSubmit={handleBulkUpload} className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Image URLs (one per line)
+                    </label>
+                    <textarea
+                      value={bulkUrls}
+                      onChange={(e) => {
+                        const lines = e.target.value.split('\n').length;
+                        if (lines <= 101) { // Allow up to 100 URLs + 1 empty line
+                          setBulkUrls(e.target.value);
+                        }
+                      }}
+                      placeholder="https://example.com/image1.jpg&#10;https://example.com/image2.jpg&#10;https://example.com/image3.jpg"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      rows={8}
+                      required
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Paste up to 100 image URLs, one per line. Direct image URLs or page URLs with OG images are supported.
+                    </p>
+                    {bulkUrls && (
+                      <p className="mt-1 text-xs text-gray-600">
+                        {bulkUrls.split('\n').filter(l => l.trim().length > 0).length} URL(s) detected
+                      </p>
+                    )}
+                  </div>
+                  {bulkProgress && (
+                    <div className="text-sm text-gray-600">
+                      <div>Processing {bulkProgress.current} of {bulkProgress.total}...</div>
+                      <div className="mt-1">
+                        <span className="text-green-600">✓ {bulkProgress.success} successful</span>
+                        {bulkProgress.failed > 0 && (
+                          <span className="ml-4 text-red-600">✗ {bulkProgress.failed} failed</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex space-x-2">
+                    <button
+                      type="submit"
+                      disabled={bulkLoading || !bulkUrls.trim()}
+                      className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+                    >
+                      {bulkLoading ? 'Uploading...' : 'Upload All URLs'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowBulkUpload(false);
+                        setBulkUrls('');
+                        setBulkProgress(null);
+                      }}
+                      className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {/* Single URL Upload */}
+            {!showBulkUpload && (
+              <form onSubmit={handleUrlUpload} className="space-y-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Image URL
@@ -239,14 +414,15 @@ export default function MediaAdmin() {
                   Enter a direct image URL or a page URL. Title and description will be auto-generated.
                 </p>
               </div>
-              <button
-                type="submit"
-                disabled={loading || !uploadUrl}
-                className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
-              >
-                {loading ? 'Downloading & Uploading...' : 'Upload from URL'}
-              </button>
-            </form>
+                <button
+                  type="submit"
+                  disabled={loading || !uploadUrl}
+                  className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
+                >
+                  {loading ? 'Downloading & Uploading...' : 'Upload from URL'}
+                </button>
+              </form>
+            )}
           </div>
         )}
 

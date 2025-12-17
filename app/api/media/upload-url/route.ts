@@ -32,6 +32,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate URL format
+    try {
+      new URL(imageUrl);
+    } catch (urlError) {
+      return NextResponse.json(
+        { error: `Invalid URL format: ${imageUrl}. Please provide a valid URL starting with http:// or https://` },
+        { status: 400 }
+      );
+    }
+
     let imageBuffer: Buffer;
     let contentType: string;
     let title: string;
@@ -71,37 +81,56 @@ export async function POST(request: NextRequest) {
     if (isDirectImage) {
       // Direct image URL - download it
       try {
+        console.log('Downloading direct image from URL:', imageUrl);
         const imageResponse = await fetch(imageUrl, {
           headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Accept': 'image/*,*/*;q=0.8',
+            'Referer': imageUrl,
           },
         });
         
         if (!imageResponse.ok) {
+          const errorText = await imageResponse.text().catch(() => '');
+          console.error('Image download failed:', imageResponse.status, imageResponse.statusText, errorText);
           return NextResponse.json(
-            { error: `Failed to download image from URL: ${imageResponse.status} ${imageResponse.statusText}` },
+            { 
+              error: `Failed to download image from URL: ${imageResponse.status} ${imageResponse.statusText}`,
+              details: errorText || 'No additional error details'
+            },
             { status: 400 }
           );
         }
         
         contentType = imageResponse.headers.get('content-type') || 'image/jpeg';
+        console.log('Image content type:', contentType);
         
         // Only proceed if it's actually an image
         if (!contentType.startsWith('image/')) {
           return NextResponse.json(
-            { error: 'URL does not point to an image file' },
+            { 
+              error: 'URL does not point to an image file',
+              details: `Content-Type is: ${contentType}`
+            },
             { status: 400 }
           );
         }
         
-        imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+        const arrayBuffer = await imageResponse.arrayBuffer();
+        imageBuffer = Buffer.from(arrayBuffer);
+        console.log('Image downloaded successfully, size:', imageBuffer.length, 'bytes');
         
         // Extract filename from URL (remove query params)
-        const urlObj = new URL(imageUrl);
-        urlFilename = urlObj.pathname.split('/').pop() || 'image.jpg';
-        // Remove query params from filename if any got included
-        urlFilename = urlFilename.split('?')[0].split('#')[0];
+        try {
+          const urlObj = new URL(imageUrl);
+          urlFilename = urlObj.pathname.split('/').pop() || 'image.jpg';
+          // Remove query params from filename if any got included
+          urlFilename = urlFilename.split('?')[0].split('#')[0];
+        } catch (urlError) {
+          // If URL parsing fails, try to extract from the URL string directly
+          const urlParts = imageUrl.split('/');
+          urlFilename = urlParts[urlParts.length - 1].split('?')[0].split('#')[0] || 'image.jpg';
+        }
         title = urlFilename.replace(/\.[^/.]+$/, '') || 'Image from URL';
       } catch (fetchError: any) {
         return NextResponse.json(
@@ -126,24 +155,39 @@ export async function POST(request: NextRequest) {
         imageUrlToDownload = ogData.ogImage;
         
         // Download the OG image
+        console.log('Downloading OG image from URL:', imageUrlToDownload);
         const imageResponse = await fetch(imageUrlToDownload, {
           headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Accept': 'image/*,*/*;q=0.8',
+            'Referer': imageUrl,
           },
         });
         
         if (!imageResponse.ok) {
+          const errorText = await imageResponse.text().catch(() => '');
+          console.error('OG image download failed:', imageResponse.status, imageResponse.statusText, errorText);
           return NextResponse.json(
-            { error: `Failed to download image from page: ${imageResponse.status} ${imageResponse.statusText}` },
+            { 
+              error: `Failed to download image from page: ${imageResponse.status} ${imageResponse.statusText}`,
+              details: errorText || 'No additional error details'
+            },
             { status: 400 }
           );
         }
         
-        imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+        const arrayBuffer = await imageResponse.arrayBuffer();
+        imageBuffer = Buffer.from(arrayBuffer);
         contentType = imageResponse.headers.get('content-type') || 'image/jpeg';
-        const ogImagePath = new URL(imageUrlToDownload).pathname;
-        urlFilename = ogImagePath.split('/').pop() || 'image.jpg';
+        console.log('OG image downloaded successfully, size:', imageBuffer.length, 'bytes');
+        try {
+          const ogImagePath = new URL(imageUrlToDownload).pathname;
+          urlFilename = ogImagePath.split('/').pop() || 'image.jpg';
+        } catch (urlError) {
+          // If URL parsing fails, try to extract from the URL string directly
+          const urlParts = imageUrlToDownload.split('/');
+          urlFilename = urlParts[urlParts.length - 1].split('?')[0].split('#')[0] || 'image.jpg';
+        }
       } catch (error: any) {
         console.error('Error extracting/downloading image:', error);
         return NextResponse.json(
@@ -171,7 +215,11 @@ export async function POST(request: NextRequest) {
       if (error) {
         console.error('Supabase upload error:', error);
         return NextResponse.json(
-          { error: 'Failed to upload file to storage' },
+          { 
+            error: 'Failed to upload file to storage',
+            message: error.message || 'Storage upload failed',
+            details: error.toString()
+          },
           { status: 500 }
         );
       }
@@ -204,8 +252,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(media);
   } catch (error: any) {
     console.error('Error uploading image from URL:', error);
+    const errorMessage = error?.message || error?.toString() || 'Internal server error';
     return NextResponse.json(
-      { error: error.message || 'Internal server error' },
+      { 
+        error: 'Error uploading image from URL',
+        message: errorMessage,
+        details: error?.stack || 'No additional details available'
+      },
       { status: 500 }
     );
   }
