@@ -15,15 +15,18 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: 'desc' },
     });
 
-    // Sort articles: untitled ones last, then by createdAt desc
+    // Sort articles: articles without meta title last, then by createdAt desc
     const sortedArticles = articles.sort((a, b) => {
-      const aIsUntitled = !a.title || a.title.trim() === '';
-      const bIsUntitled = !b.title || b.title.trim() === '';
+      // Check if title exists and is not empty/whitespace
+      const aHasTitle = a.title != null && String(a.title).trim().length > 0;
+      const bHasTitle = b.title != null && String(b.title).trim().length > 0;
       
-      if (aIsUntitled && !bIsUntitled) return 1;
-      if (!aIsUntitled && bIsUntitled) return -1;
+      // If a doesn't have title but b does, a comes last (return positive)
+      if (!aHasTitle && bHasTitle) return 1;
+      // If a has title but b doesn't, b comes last (return negative, so a comes first)
+      if (aHasTitle && !bHasTitle) return -1;
       
-      // Both have titles or both are untitled, maintain createdAt order
+      // Both have titles or both don't have titles, sort by createdAt desc (newest first)
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
 

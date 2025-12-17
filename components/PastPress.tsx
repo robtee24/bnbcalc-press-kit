@@ -64,7 +64,7 @@ export default function PastPress({ category }: PastPressProps) {
                     src={article.ogImage}
                     alt={article.title && article.title.trim() !== '' 
                       ? article.title 
-                      : 'Untitled Article'}
+                      : 'Meta title not found'}
                     fill
                     className="object-cover"
                   />
@@ -74,7 +74,7 @@ export default function PastPress({ category }: PastPressProps) {
                 <h2 className="text-xl font-semibold mb-2 line-clamp-2">
                   {article.title && article.title.trim() !== '' 
                     ? article.title 
-                    : 'Untitled Article - Click to read'}
+                    : 'Meta title not found, click to read article'}
                 </h2>
                 {article.metaDescription && (
                   <p className="text-gray-600 text-sm line-clamp-3">

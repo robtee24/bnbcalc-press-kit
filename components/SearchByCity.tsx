@@ -390,7 +390,7 @@ export default function SearchByCity({ initialCity, showBackButton, onBack }: Se
       {!selectedCity && !loading && averages && (
         <div className="space-y-6">
           <h2 className="text-2xl font-bold">National Averages</h2>
-          <p className="text-gray-600">Search for a city above to see specific metrics, or view national averages below.</p>
+          <p className="text-gray-600">Search for a market above to see specific metrics, or view national averages below. Market names are typically the largest city for a given area.</p>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <MetricCard
