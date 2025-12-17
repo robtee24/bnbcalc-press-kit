@@ -1,19 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import dynamic from 'next/dynamic';
 import LoadingIcon from './LoadingIcon';
 import AnimatedNumber from './AnimatedNumber';
-
-// Dynamically import CityMap to avoid SSR issues with Leaflet
-const CityMap = dynamic(() => import('./CityMap'), {
-  ssr: false,
-  loading: () => (
-    <div className="w-full h-64 bg-gray-900 rounded-lg flex items-center justify-center mb-6">
-      <div className="text-white">Loading map...</div>
-    </div>
-  ),
-});
 
 interface CityData {
   id: string;
@@ -460,9 +449,7 @@ export default function SearchByCity({ initialCity, showBackButton, onBack }: Se
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <h2 className="text-2xl font-bold">
-              {selectedCity.state 
-                ? `${selectedCity.city}, ${selectedCity.state}` 
-                : selectedCity.city}
+              {selectedCity.city} Market
             </h2>
             <button
               onClick={() => {
@@ -475,9 +462,6 @@ export default function SearchByCity({ initialCity, showBackButton, onBack }: Se
               Clear & View Averages
             </button>
           </div>
-          
-          {/* City Map Banner */}
-          <CityMap city={selectedCity.city} state={selectedCity.state} />
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <MetricCard
@@ -541,23 +525,47 @@ export default function SearchByCity({ initialCity, showBackButton, onBack }: Se
             />
           </div>
 
-          {pressRelease && (
-            <div className="mt-8 bg-white rounded-lg shadow-md p-6">
-              <h3 className="text-2xl font-bold mb-4">Press Release</h3>
-              <pre className="whitespace-pre-wrap text-sm text-gray-700 font-sans">
-                {pressRelease}
-              </pre>
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(pressRelease);
-                  alert('Press release copied to clipboard!');
-                }}
-                className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-              >
-                Copy to Clipboard
-              </button>
-            </div>
-          )}
+          {pressRelease && (() => {
+            // Extract title (line after "FOR IMMEDIATE RELEASE\n\n")
+            const parts = pressRelease.split('\n\n');
+            const title = parts[1] || '';
+            const restOfRelease = parts.slice(2).join('\n\n');
+            
+            // Process the rest to convert <strong> tags and line breaks
+            const processedContent = restOfRelease
+              .replace(/\n/g, '<br>')
+              .replace(/<strong>(.*?)<\/strong>/g, '<strong class="font-bold">$1</strong>');
+            
+            return (
+              <div className="mt-8 bg-white rounded-lg shadow-md p-6">
+                <h3 className="text-2xl font-bold mb-4">Press Release</h3>
+                <div className="space-y-4">
+                  <div className="text-lg font-semibold mb-2">FOR IMMEDIATE RELEASE</div>
+                  {title && (
+                    <div 
+                      className="text-4xl font-bold mb-6"
+                      dangerouslySetInnerHTML={{ 
+                        __html: title.replace(/<strong>/g, '<strong class="font-bold">')
+                      }}
+                    />
+                  )}
+                  <div 
+                    className="whitespace-pre-wrap text-base text-gray-700 font-sans leading-relaxed"
+                    dangerouslySetInnerHTML={{ __html: processedContent }}
+                  />
+                </div>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(pressRelease.replace(/<strong>/g, '').replace(/<\/strong>/g, ''));
+                    alert('Press release copied to clipboard!');
+                  }}
+                  className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                >
+                  Copy to Clipboard
+                </button>
+              </div>
+            );
+          })()}
         </div>
       )}
     </div>

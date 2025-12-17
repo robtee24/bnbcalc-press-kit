@@ -12,11 +12,11 @@ export async function GET(request: NextRequest) {
 
     const articles = await prisma.article.findMany({
       where,
-      orderBy: { createdAt: 'desc' },
     });
 
     // Sort articles: articles without meta title last, then by createdAt desc
-    const sortedArticles = articles.sort((a, b) => {
+    // IMPORTANT: Sort AFTER fetching, not using orderBy, to ensure proper sorting
+    const sortedArticles = [...articles].sort((a, b) => {
       // Check if title exists and is not empty/whitespace
       const aHasTitle = a.title != null && String(a.title).trim().length > 0;
       const bHasTitle = b.title != null && String(b.title).trim().length > 0;
