@@ -36,48 +36,177 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { imageUrl, category, type, platform } = await request.json();
+    const { imageUrl, videoUrl, category, type, platform } = await request.json();
 
-    if (!imageUrl || !type) {
+    // Support both imageUrl and videoUrl for backwards compatibility
+    const url = imageUrl || videoUrl;
+
+    if (!url || !type) {
       return NextResponse.json(
-        { error: 'Image URL and type are required' },
+        { error: 'URL and type are required' },
         { status: 400 }
       );
     }
 
-    if (type !== 'image') {
+    if (type !== 'image' && type !== 'video') {
       return NextResponse.json(
-        { error: 'URL upload is only supported for images' },
+        { error: 'URL upload is only supported for images and videos' },
         { status: 400 }
       );
     }
 
     // Validate URL format
     try {
-      new URL(imageUrl);
+      new URL(url);
     } catch (urlError) {
       return NextResponse.json(
-        { error: `Invalid URL format: ${imageUrl}. Please provide a valid URL starting with http:// or https://` },
+        { error: `Invalid URL format: ${url}. Please provide a valid URL starting with http:// or https://` },
         { status: 400 }
       );
     }
 
+    if (type === 'video') {
+      // Handle video URL upload
+      try {
+        console.log('Downloading video from URL:', url);
+        const videoResponse = await fetch(url, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'video/*,*/*;q=0.8',
+          },
+        });
+
+        if (!videoResponse.ok) {
+          const errorText = await videoResponse.text().catch(() => '');
+          console.error('Video download failed:', videoResponse.status, videoResponse.statusText, errorText);
+          return NextResponse.json(
+            { 
+              error: `Failed to download video from URL: ${videoResponse.status} ${videoResponse.statusText}`,
+              details: errorText || 'No additional error details'
+            },
+            { status: 400 }
+          );
+        }
+
+        const contentTypeHeader = videoResponse.headers.get('content-type');
+        if (!contentTypeHeader?.startsWith('video/')) {
+          return NextResponse.json(
+            { 
+              error: 'URL does not point to a video file',
+              details: `Content-Type is: ${contentTypeHeader}`
+            },
+            { status: 400 }
+          );
+        }
+
+        const arrayBuffer = await videoResponse.arrayBuffer();
+        const videoBuffer = Buffer.from(arrayBuffer);
+        console.log('Video downloaded successfully, size:', videoBuffer.length, 'bytes');
+
+        // Extract filename from URL
+        let urlFilename: string;
+        try {
+          const urlObj = new URL(url);
+          urlFilename = urlObj.pathname.split('/').pop() || 'video.mp4';
+          urlFilename = urlFilename.split('?')[0].split('#')[0];
+          // Ensure .mp4 extension
+          if (!urlFilename.toLowerCase().endsWith('.mp4')) {
+            urlFilename = urlFilename.replace(/\.[^/.]+$/, '') + '.mp4';
+          }
+        } catch (urlError) {
+          const urlParts = url.split('/');
+          urlFilename = (urlParts[urlParts.length - 1].split('?')[0].split('#')[0] || 'video.mp4');
+          if (!urlFilename.toLowerCase().endsWith('.mp4')) {
+            urlFilename = urlFilename.replace(/\.[^/.]+$/, '') + '.mp4';
+          }
+        }
+
+        const filename = `${Date.now()}-${urlFilename}`;
+        const filePath = `videos/${filename}`;
+        let fileUrl: string;
+
+        // Upload to Supabase Storage if configured, otherwise use local filesystem
+        const supabase = getSupabaseClient();
+        if (supabase) {
+          console.log('Uploading video to Supabase:', {
+            bucket: 'media',
+            path: filePath,
+            size: videoBuffer.length,
+            contentType: contentTypeHeader
+          });
+
+          const { data, error } = await supabase.storage
+            .from('media')
+            .upload(filePath, videoBuffer, {
+              contentType: contentTypeHeader || 'video/mp4',
+              upsert: false,
+              cacheControl: '3600',
+            });
+
+          if (error) {
+            console.error('Supabase upload error:', error);
+            return NextResponse.json(
+              { 
+                error: 'Failed to upload video to storage',
+                message: error.message || 'Storage upload failed',
+                details: error.toString()
+              },
+              { status: 500 }
+            );
+          }
+
+          const { data: { publicUrl } } = supabase.storage
+            .from('media')
+            .getPublicUrl(filePath);
+
+          fileUrl = publicUrl;
+        } else {
+          // Fallback to local filesystem for development
+          const uploadDir = join(process.cwd(), 'public', 'uploads', 'video');
+          await mkdir(uploadDir, { recursive: true });
+          const filepath = join(uploadDir, filename);
+          await writeFile(filepath, videoBuffer);
+          fileUrl = `/uploads/video/${filename}`;
+        }
+
+        const media = await prisma.media.create({
+          data: {
+            title: urlFilename.replace(/\.mp4$/i, '') || 'Video from URL',
+            description: null,
+            url: fileUrl,
+            type: 'video',
+            category: category || 'media',
+            platform: platform || null,
+          },
+        });
+
+        return NextResponse.json(media);
+      } catch (error: any) {
+        console.error('Error downloading/uploading video:', error);
+        return NextResponse.json(
+          { error: `Failed to process video URL: ${error.message || 'Unknown error'}` },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Handle image URL upload (existing code)
     let imageBuffer: Buffer;
     let contentType: string;
     let title: string;
     let description: string | null = null;
     let urlFilename: string;
-    let imageUrlToDownload = imageUrl;
+    let imageUrlToDownload = url;
 
     // Check if it's a direct image URL by:
     // 1. Checking if URL has image extension (even with query params)
     // 2. Or by checking the Content-Type header
-    const hasImageExtension = imageUrl.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp|ico)(\?|#|$)/i);
+    const hasImageExtension = url.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp|ico)(\?|#|$)/i);
     
     // First, try a HEAD request to check Content-Type
     let isDirectImage = false;
     try {
-      const headResponse = await fetch(imageUrl, {
+      const headResponse = await fetch(url, {
         method: 'HEAD',
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -101,12 +230,12 @@ export async function POST(request: NextRequest) {
     if (isDirectImage) {
       // Direct image URL - download it
       try {
-        console.log('Downloading direct image from URL:', imageUrl);
-        const imageResponse = await fetch(imageUrl, {
+        console.log('Downloading direct image from URL:', imageUrlToDownload);
+        const imageResponse = await fetch(imageUrlToDownload, {
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Accept': 'image/*,*/*;q=0.8',
-            'Referer': imageUrl,
+            'Referer': url,
           },
         });
         
@@ -142,13 +271,13 @@ export async function POST(request: NextRequest) {
         
         // Extract filename from URL (remove query params)
         try {
-          const urlObj = new URL(imageUrl);
+          const urlObj = new URL(imageUrlToDownload);
           urlFilename = urlObj.pathname.split('/').pop() || 'image.jpg';
           // Remove query params from filename if any got included
           urlFilename = urlFilename.split('?')[0].split('#')[0];
         } catch (urlError) {
           // If URL parsing fails, try to extract from the URL string directly
-          const urlParts = imageUrl.split('/');
+          const urlParts = url.split('/');
           urlFilename = urlParts[urlParts.length - 1].split('?')[0].split('#')[0] || 'image.jpg';
         }
         title = urlFilename.replace(/\.[^/.]+$/, '') || 'Image from URL';
@@ -161,7 +290,7 @@ export async function POST(request: NextRequest) {
     } else {
       // Page URL - extract OG image and metadata
       try {
-        const ogData = await extractOGData(imageUrl);
+        const ogData = await extractOGData(url);
         title = ogData.title || 'Image from URL';
         description = ogData.description;
         
@@ -180,7 +309,7 @@ export async function POST(request: NextRequest) {
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Accept': 'image/*,*/*;q=0.8',
-            'Referer': imageUrl,
+            'Referer': url,
           },
         });
         
@@ -217,9 +346,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const filename = `${Date.now()}-${urlFilename}`;
+        const filename = `${Date.now()}-${urlFilename}`;
 
-    let url: string;
+        let fileUrl: string;
 
     // Use Supabase Storage if configured, otherwise use local filesystem
     // Create client with service role key to bypass RLS
@@ -319,26 +448,26 @@ export async function POST(request: NextRequest) {
         .from('media')
         .getPublicUrl(filePath);
 
-      url = publicUrl;
+        fileUrl = publicUrl;
     } else {
       // Fallback to local filesystem for development
       const uploadDir = join(process.cwd(), 'public', 'uploads', 'image');
       await mkdir(uploadDir, { recursive: true });
       const filepath = join(uploadDir, filename);
       await writeFile(filepath, imageBuffer);
-      url = `/uploads/image/${filename}`;
+          fileUrl = `/uploads/image/${filename}`;
     }
 
-    const media = await prisma.media.create({
-      data: {
-        title,
-        description,
-        url,
-        type: 'image',
-        category: category || 'media',
-        platform: platform || null,
-      },
-    });
+      const media = await prisma.media.create({
+        data: {
+          title,
+          description,
+          url: fileUrl,
+          type: 'image',
+          category: category || 'media',
+          platform: platform || null,
+        },
+      });
 
     return NextResponse.json(media);
   } catch (error: any) {

@@ -121,16 +121,16 @@ export default function AdsAdmin() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          imageUrl: uploadUrl,
+          [activeTab === 'images' ? 'imageUrl' : 'videoUrl']: uploadUrl,
           category: 'ads',
-          type: 'image',
+          type: activeTab.slice(0, -1), // 'images' -> 'image', 'videos' -> 'video'
           platform: uploadPlatform || null,
         }),
       });
 
         if (response.ok) {
           const result = await response.json();
-          alert(`Image uploaded successfully! Title: ${result.title}`);
+          alert(`${activeTab === 'images' ? 'Image' : 'Video'} uploaded successfully! Title: ${result.title}`);
           setUploadUrl('');
           setUploadPlatform('');
           fetchAds();
@@ -150,12 +150,12 @@ export default function AdsAdmin() {
             errorMessage = errorText || `HTTP ${response.status}: ${response.statusText}`;
           }
           console.error('Upload error response:', errorText);
-          alert(`Error uploading image: ${errorMessage}`);
+          alert(`Error uploading ${activeTab === 'images' ? 'image' : 'video'}: ${errorMessage}`);
         }
     } catch (error: any) {
-      console.error('Error uploading image from URL:', error);
+      console.error(`Error uploading ${activeTab === 'images' ? 'image' : 'video'} from URL:`, error);
       const errorMessage = error?.message || 'Network error. Please check your connection and try again.';
-      alert(`Error uploading image from URL: ${errorMessage}`);
+      alert(`Error uploading ${activeTab === 'images' ? 'image' : 'video'} from URL: ${errorMessage}`);
     } finally {
       setLoading(false);
     }
@@ -246,16 +246,16 @@ export default function AdsAdmin() {
         setBulkProgress({ current: i + 1, total: urlLines.length, success: successCount, failed: failedCount });
 
         try {
-          const response = await fetch('/api/media/upload-url', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              imageUrl: url,
-              category: 'ads',
-              type: 'image',
-              platform: bulkPlatform || null,
-            }),
-          });
+            const response = await fetch('/api/media/upload-url', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                [activeTab === 'images' ? 'imageUrl' : 'videoUrl']: url,
+                category: 'ads',
+                type: activeTab.slice(0, -1), // 'images' -> 'image', 'videos' -> 'video'
+                platform: bulkPlatform || null,
+              }),
+            });
 
           if (response.ok) {
             successCount++;
@@ -277,13 +277,13 @@ export default function AdsAdmin() {
       setBulkProgress({ current: urlLines.length, total: urlLines.length, success: successCount, failed: failedCount });
       
       if (successCount > 0) {
-        alert(`Bulk upload complete! ${successCount} image(s) uploaded successfully${failedCount > 0 ? `, ${failedCount} failed` : ''}.`);
+        alert(`Bulk upload complete! ${successCount} ${activeTab}(s) uploaded successfully${failedCount > 0 ? `, ${failedCount} failed` : ''}.`);
         setBulkUrls('');
         setBulkPlatform('');
         setShowBulkUpload(false);
         fetchAds();
       } else {
-        alert(`Bulk upload failed. All ${failedCount} image(s) failed to upload. Please check the URLs and try again.`);
+        alert(`Bulk upload failed. All ${failedCount} ${activeTab}(s) failed to upload. Please check the URLs and try again.`);
       }
     } catch (error) {
       console.error('Error during bulk upload:', error);
@@ -328,11 +328,11 @@ export default function AdsAdmin() {
       <div className="bg-white p-6 rounded-lg shadow">
         <h2 className="text-xl font-bold mb-4">Upload Ads - {activeTab === 'images' ? 'Images' : 'Videos'} (Multiple files supported)</h2>
         
-        {/* URL Upload Section - Only for Images */}
-        {activeTab === 'images' && (
+          {/* URL Upload Section - For Images and Videos */}
+          {(activeTab === 'images' || activeTab === 'videos') && (
           <div className="mb-6 space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Upload Image from URL</h3>
+              <h3 className="text-lg font-semibold">Upload {activeTab === 'images' ? 'Image' : 'Video'} from URL</h3>
               <button
                 type="button"
                 onClick={() => setShowBulkUpload(!showBulkUpload)}
@@ -342,11 +342,11 @@ export default function AdsAdmin() {
               </button>
             </div>
 
-            {/* Bulk Upload Modal */}
-            {showBulkUpload && (
-              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                <h4 className="font-semibold mb-3">Bulk Add Images (up to 100 URLs)</h4>
-                <form onSubmit={handleBulkUpload} className="space-y-3">
+              {/* Bulk Upload Modal */}
+              {showBulkUpload && (
+                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <h4 className="font-semibold mb-3">Bulk Add {activeTab === 'images' ? 'Images' : 'Videos'} (up to 100 URLs)</h4>
+                  <form onSubmit={handleBulkUpload} className="space-y-3">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Platform (applies to all URLs)
@@ -359,13 +359,14 @@ export default function AdsAdmin() {
                       <option value="">Select Platform</option>
                       <option value="meta">Meta</option>
                       <option value="reddit">Reddit</option>
+                      <option value="tiktok">TikTok</option>
                       <option value="linkedin">LinkedIn</option>
                       <option value="google">Google</option>
                     </select>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Image URLs (one per line)
+                      {activeTab === 'images' ? 'Image' : 'Video'} URLs (one per line)
                     </label>
                     <textarea
                       value={bulkUrls}
@@ -375,13 +376,15 @@ export default function AdsAdmin() {
                           setBulkUrls(e.target.value);
                         }
                       }}
-                      placeholder="https://example.com/image1.jpg&#10;https://example.com/image2.jpg&#10;https://example.com/image3.jpg"
+                      placeholder={activeTab === 'images' 
+                        ? "https://example.com/image1.jpg&#10;https://example.com/image2.jpg&#10;https://example.com/image3.jpg"
+                        : "https://example.com/video1.mp4&#10;https://example.com/video2.mp4&#10;https://example.com/video3.mp4"}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                       rows={8}
                       required
                     />
                     <p className="mt-1 text-xs text-gray-500">
-                      Paste up to 100 image URLs, one per line. Direct image URLs or page URLs with OG images are supported.
+                      Paste up to 100 {activeTab === 'images' ? 'image' : 'video'} URLs, one per line. {activeTab === 'images' ? 'Direct image URLs or page URLs with OG images are supported.' : 'Videos will be downloaded and saved as MP4. Title will be auto-generated from the filename.'}
                     </p>
                     {bulkUrls && (
                       <p className="mt-1 text-xs text-gray-600">
@@ -452,21 +455,22 @@ export default function AdsAdmin() {
                   value={uploadPlatform}
                   onChange={(e) => setUploadPlatform(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Select Platform</option>
-                  <option value="meta">Meta</option>
-                  <option value="reddit">Reddit</option>
-                  <option value="linkedin">LinkedIn</option>
-                  <option value="google">Google</option>
-                </select>
+                    >
+                      <option value="">Select Platform</option>
+                      <option value="meta">Meta</option>
+                      <option value="reddit">Reddit</option>
+                      <option value="tiktok">TikTok</option>
+                      <option value="linkedin">LinkedIn</option>
+                      <option value="google">Google</option>
+                    </select>
               </div>
                 <button
                   type="submit"
-                  disabled={loading || !uploadUrl}
-                  className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
-                >
-                  {loading ? 'Downloading & Uploading...' : 'Upload from URL'}
-                </button>
+                      disabled={loading || !uploadUrl}
+                      className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
+                    >
+                      {loading ? (activeTab === 'images' ? 'Downloading & Uploading...' : 'Downloading Video & Uploading...') : `Upload ${activeTab === 'images' ? 'Image' : 'Video'} from URL`}
+                    </button>
               </form>
             )}
           </div>
@@ -532,13 +536,14 @@ export default function AdsAdmin() {
               value={uploadPlatform}
               onChange={(e) => setUploadPlatform(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Select Platform</option>
-              <option value="meta">Meta</option>
-              <option value="reddit">Reddit</option>
-              <option value="linkedin">LinkedIn</option>
-              <option value="google">Google</option>
-            </select>
+                    >
+                      <option value="">Select Platform</option>
+                      <option value="meta">Meta</option>
+                      <option value="reddit">Reddit</option>
+                      <option value="tiktok">TikTok</option>
+                      <option value="linkedin">LinkedIn</option>
+                      <option value="google">Google</option>
+                    </select>
           </div>
           {uploadProgress && (
             <div className="text-sm text-gray-600">
