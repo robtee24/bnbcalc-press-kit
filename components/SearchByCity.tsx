@@ -152,11 +152,11 @@ export default function SearchByCity({ initialCity, showBackButton, onBack }: Se
         setSearchTerm(''); // Clear search term after selection
         generatePressRelease(cityName);
       } else {
-        alert('City not found');
+        alert('Market not found');
       }
     } catch (error) {
       console.error('Error fetching city data:', error);
-      alert('Error fetching city data');
+      alert('Error fetching market data');
     } finally {
       setLoading(false);
     }
@@ -345,12 +345,12 @@ export default function SearchByCity({ initialCity, showBackButton, onBack }: Se
           ← Back to Rankings
         </button>
       )}
-      <h1 className="text-3xl font-bold mb-6">Search by City</h1>
+      <h1 className="text-3xl font-bold mb-6">Search by Market</h1>
       
       <div className="mb-8 search-container">
         <input
           type="text"
-          placeholder="Search City"
+          placeholder="Search Market"
           value={searchTerm}
           onChange={(e) => {
             setSearchTerm(e.target.value);

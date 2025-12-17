@@ -1,38 +1,26 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { MapContainer, TileLayer, Circle, useMap } from 'react-leaflet';
+import { useEffect, useState } from 'react';
+import { MapContainer, TileLayer, Circle, Marker } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-// Fix for default markers in Next.js
-delete (L.Icon.Default.prototype as any)._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
-  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-});
+// Create a black marker icon - using SVG data URI
+const createBlackMarkerIcon = () => {
+  const svgString = `<svg width="25" height="41" viewBox="0 0 25 41" xmlns="http://www.w3.org/2000/svg"><path fill="#000000" stroke="#fff" stroke-width="1.5" d="M12.5 0C5.596 0 0 5.596 0 12.5c0 12.5 12.5 28.5 12.5 28.5s12.5-16 12.5-28.5C25 5.596 19.404 0 12.5 0z"/></svg>`;
+  const encodedSvg = encodeURIComponent(svgString);
+  
+  return new L.Icon({
+    iconUrl: `data:image/svg+xml;charset=utf-8,${encodedSvg}`,
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [0, -41],
+  });
+};
 
 interface CityMapProps {
   city: string;
   state: string | null;
-}
-
-// Component to handle map zoom animation
-function MapZoom({ center, zoom }: { center: [number, number]; zoom: number }) {
-  const map = useMap();
-
-  useEffect(() => {
-    // Animate zoom to city location
-    setTimeout(() => {
-      map.setView(center, zoom, {
-        animate: true,
-        duration: 1.5,
-      });
-    }, 500); // Small delay for initial map load
-  }, [map, center, zoom]);
-
-  return null;
 }
 
 export default function CityMap({ city, state }: CityMapProps) {
@@ -77,8 +65,8 @@ export default function CityMap({ city, state }: CityMapProps) {
 
   if (loading || !cityCoords) {
     return (
-      <div className="w-full h-64 bg-gray-900 rounded-lg flex items-center justify-center">
-        <div className="text-white">Loading map...</div>
+      <div className="w-full h-64 bg-gray-200 rounded-lg flex items-center justify-center mb-6 border border-gray-300">
+        <div className="text-gray-600">Loading map...</div>
       </div>
     );
   }
@@ -86,25 +74,26 @@ export default function CityMap({ city, state }: CityMapProps) {
   // 400 miles radius in meters (1 mile = 1609.34 meters)
   const radiusMeters = 400 * 1609.34;
 
+  // Calculate zoom level to show approximately 400 miles radius
+  // Using a zoom level that shows roughly 400-500 miles across
+  const zoomLevel = 6;
+
   return (
     <div className="w-full h-64 rounded-lg overflow-hidden mb-6 border border-gray-300">
       <MapContainer
-        center={[39.8283, -98.5795]} // USA center initially
-        zoom={4}
-        style={{ height: '100%', width: '100%', backgroundColor: '#000000' }}
+        center={cityCoords}
+        zoom={zoomLevel}
+        style={{ height: '100%', width: '100%', backgroundColor: '#f3f4f6' }}
         zoomControl={false}
         attributionControl={false}
-        className="city-map-black"
+        className="city-map-grey"
       >
-        {/* Black/dark tile layer for silhouette effect */}
+        {/* Grey tile layer */}
         <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution=""
           maxZoom={18}
         />
-        
-        {/* Zoom to city location */}
-        <MapZoom center={cityCoords} zoom={7} />
         
         {/* White circle around city with 400-mile radius */}
         <Circle
@@ -112,11 +101,14 @@ export default function CityMap({ city, state }: CityMapProps) {
           radius={radiusMeters}
           pathOptions={{
             color: 'white',
-            fillColor: 'rgba(255, 255, 255, 0.15)',
-            fillOpacity: 0.25,
-            weight: 2.5,
+            fillColor: 'rgba(255, 255, 255, 0.2)',
+            fillOpacity: 0.3,
+            weight: 2,
           }}
         />
+        
+        {/* Black marker/flag at city location */}
+        <Marker position={cityCoords} icon={createBlackMarkerIcon()} />
       </MapContainer>
     </div>
   );

@@ -67,7 +67,7 @@ export default function Sidebar({
             )}
           </div>
 
-          {/* Search by City */}
+          {/* Search by Market */}
           <button
             onClick={() => onMenuClick('search-by-city')}
             className={`w-full text-left px-4 py-2 rounded text-xs font-semibold uppercase ${
@@ -76,7 +76,7 @@ export default function Sidebar({
                 : 'text-gray-700 hover:bg-gray-100'
             }`}
           >
-            Search by City
+            Search by Market
           </button>
 
           {/* Rankings - Parent */}
