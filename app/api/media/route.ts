@@ -1,9 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthToken, verifyToken } from '@/lib/auth';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
 import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
+
+// Create Supabase client with service role key for server-side storage operations (bypasses RLS)
+function getSupabaseClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+  
+  if (!supabaseUrl) return null;
+  
+  // Always prefer service role key for server-side storage operations
+  const keyToUse = supabaseServiceKey || supabaseAnonKey;
+  if (!keyToUse) return null;
+  
+  return createClient(supabaseUrl, keyToUse, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  });
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -65,6 +85,8 @@ export async function POST(request: NextRequest) {
     let url: string;
 
     // Use Supabase Storage if configured, otherwise use local filesystem (for development)
+    // Create client with service role key to bypass RLS
+    const supabase = getSupabaseClient();
     if (supabase) {
       const fileExt = file.name.split('.').pop();
       const filePath = `${type}s/${filename}`;

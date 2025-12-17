@@ -1,10 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthToken, verifyToken } from '@/lib/auth';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
 import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { extractOGData } from '@/lib/og-scraper';
+
+// Create Supabase client with service role key for this route (bypasses RLS)
+function getSupabaseClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+  
+  if (!supabaseUrl) return null;
+  
+  // Always prefer service role key for server-side storage operations
+  const keyToUse = supabaseServiceKey || supabaseAnonKey;
+  if (!keyToUse) return null;
+  
+  return createClient(supabaseUrl, keyToUse, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  });
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -202,6 +222,8 @@ export async function POST(request: NextRequest) {
     let url: string;
 
     // Use Supabase Storage if configured, otherwise use local filesystem
+    // Create client with service role key to bypass RLS
+    const supabase = getSupabaseClient();
     if (supabase) {
       const filePath = `images/${filename}`;
       
@@ -212,7 +234,10 @@ export async function POST(request: NextRequest) {
         contentType,
         supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ? 'configured' : 'missing',
         hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
-        hasAnonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+        hasAnonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+        usingServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+        serviceKeyLength: process.env.SUPABASE_SERVICE_ROLE_KEY?.length || 0,
+        serviceKeyPrefix: process.env.SUPABASE_SERVICE_ROLE_KEY?.substring(0, 10) || 'not set'
       });
       
       // Test if bucket exists first (but don't fail if check fails - bucket might exist but listBuckets might fail due to permissions)
