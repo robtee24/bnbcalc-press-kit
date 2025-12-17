@@ -4,6 +4,10 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "BNBCalc Press Kit",
   description: "BNBCalc Press Kit - Press releases, city data, and media resources",
+  icons: {
+    icon: '/favicon.png',
+    apple: '/favicon.png',
+  },
 };
 
 export default function RootLayout({
