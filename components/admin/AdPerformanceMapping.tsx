@@ -29,6 +29,7 @@ export default function AdPerformanceMapping() {
   const [loading, setLoading] = useState(true);
   const [selectedAdName, setSelectedAdName] = useState<string>('');
   const [selectedMediaId, setSelectedMediaId] = useState<string>('');
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -141,6 +142,31 @@ export default function AdPerformanceMapping() {
         </p>
       </div>
 
+      {/* Info Message */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+        <div className="flex items-start justify-between">
+          <div>
+            <p className="text-sm text-blue-800 mb-2">
+              <strong>Note:</strong> To add new images, go to the <strong>Images</strong> tab above. 
+              Then come back here to assign them to ads.
+            </p>
+            <p className="text-xs text-blue-600">
+              Currently showing {images.length} image(s) available for assignment.
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              setRefreshing(true);
+              fetchData().finally(() => setRefreshing(false));
+            }}
+            disabled={refreshing}
+            className="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+          >
+            {refreshing ? 'Refreshing...' : 'Refresh Images'}
+          </button>
+        </div>
+      </div>
+
       {/* Assignment Form */}
       <div className="bg-white p-6 rounded-lg shadow">
         <h3 className="text-lg font-semibold mb-4">Assign Image to Ad</h3>
@@ -164,22 +190,55 @@ export default function AdPerformanceMapping() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Select Image
+              Select Image ({images.length} available)
             </label>
-            <select
-              value={selectedMediaId}
-              onChange={(e) => setSelectedMediaId(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">-- Select an image --</option>
-              {images.map((image) => (
-                <option key={image.id} value={image.id}>
-                  {image.title}
-                </option>
-              ))}
-            </select>
+            {images.length === 0 ? (
+              <div className="p-4 border border-gray-300 rounded-md bg-gray-50 text-center">
+                <p className="text-sm text-gray-600 mb-2">No images available.</p>
+                <p className="text-xs text-gray-500">Go to the Images tab to upload images first.</p>
+              </div>
+            ) : (
+              <select
+                value={selectedMediaId}
+                onChange={(e) => setSelectedMediaId(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">-- Select an image --</option>
+                {images.map((image) => (
+                  <option key={image.id} value={image.id}>
+                    {image.title}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
         </div>
+        
+        {/* Preview of selected image */}
+        {selectedMediaId && (
+          <div className="mb-4 p-4 bg-gray-50 rounded-lg">
+            <p className="text-sm font-medium text-gray-700 mb-2">Selected Image Preview:</p>
+            <div className="flex items-center gap-4">
+              {images.find(img => img.id === selectedMediaId) && (
+                <>
+                  <div className="relative w-24 h-24 flex-shrink-0 overflow-hidden rounded border border-gray-200">
+                    <Image
+                      src={images.find(img => img.id === selectedMediaId)!.url}
+                      alt={images.find(img => img.id === selectedMediaId)!.title}
+                      fill
+                      className="object-cover"
+                      unoptimized
+                    />
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">{images.find(img => img.id === selectedMediaId)!.title}</p>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+        
         <button
           onClick={handleAssign}
           disabled={!selectedAdName || !selectedMediaId}
