@@ -8,6 +8,7 @@ import Media from '@/components/Media';
 import Ads from '@/components/Ads';
 import Rankings from '@/components/Rankings';
 import RankingDetail from '@/components/RankingDetail';
+import AdPerformance from '@/components/AdPerformance';
 
 export default function Home() {
   const [activeModule, setActiveModule] = useState<string | null>(null);
@@ -97,6 +98,7 @@ export default function Home() {
         {activeModule === 'videos' && <Media type="video" />}
         {activeModule === 'ads-images' && <Ads type="image" />}
         {activeModule === 'ads-videos' && <Ads type="video" />}
+        {activeModule === 'ads-performance' && <AdPerformance />}
         {activeModule === 'rankings' && !selectedMetric && (
           <Rankings onSelectMetric={handleSelectMetric} />
         )}

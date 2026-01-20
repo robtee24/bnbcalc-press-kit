@@ -209,7 +209,7 @@ export default function Sidebar({
             <button
               onClick={() => onToggleExpand('ads')}
               className={`w-full text-left px-4 py-2 rounded flex items-center justify-between text-xs font-semibold uppercase ${
-                activeModule === 'ads-images' || activeModule === 'ads-videos'
+                activeModule === 'ads-images' || activeModule === 'ads-videos' || activeModule === 'ads-performance'
                   ? 'bg-blue-100 text-blue-700' 
                   : 'text-gray-700 hover:bg-gray-100'
               }`}
@@ -240,6 +240,16 @@ export default function Sidebar({
                   }`}
                 >
                   Videos
+                </button>
+                <button
+                  onClick={() => onMenuClick('ads-performance')}
+                  className={`w-full text-left px-4 py-2 rounded text-xs font-semibold uppercase ${
+                    activeModule === 'ads-performance' 
+                      ? 'bg-blue-100 text-blue-700' 
+                      : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  Ad Performance
                 </button>
               </div>
             )}
