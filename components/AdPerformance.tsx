@@ -67,32 +67,79 @@ export default function AdPerformance() {
     }
   };
 
+  const normalizeForMatching = (str: string): string => {
+    return str
+      .toLowerCase()
+      .replace(/[^\w\s-]/g, '') // Remove special characters
+      .replace(/\s+/g, ' ') // Normalize whitespace
+      .trim();
+  };
+
   const findMatchingAd = (adName: string): MediaItem | null => {
     const trimmedName = adName.trim();
+    const normalizedAdName = normalizeForMatching(trimmedName);
     
-    // Try exact match
-    if (adsMap.has(trimmedName)) {
-      return adsMap.get(trimmedName)!;
-    }
-    
-    // Try normalized match
-    const normalized = trimmedName.replace(/[^\w\s-]/g, '').trim();
-    if (adsMap.has(normalized)) {
-      return adsMap.get(normalized)!;
-    }
-    
-    // Try partial match - check if any ad title contains the CSV ad name or vice versa
+    // Try exact match (case-insensitive)
     for (const [title, ad] of adsMap.entries()) {
-      if (title.includes(trimmedName) || trimmedName.includes(title)) {
+      if (normalizeForMatching(title) === normalizedAdName) {
         return ad;
       }
     }
     
-    // Try matching after removing date prefixes like "4/16 - "
+    // Try exact match with original case
+    if (adsMap.has(trimmedName)) {
+      return adsMap.get(trimmedName)!;
+    }
+    
+    // Try matching after removing date prefixes like "4/16 - ", "11/24 - ", etc.
     const withoutDate = trimmedName.replace(/^\d{1,2}\/\d{1,2}\s*-\s*/i, '').trim();
     if (withoutDate && withoutDate !== trimmedName) {
+      const normalizedWithoutDate = normalizeForMatching(withoutDate);
+      
+      // First try normalized match
       for (const [title, ad] of adsMap.entries()) {
-        if (title.includes(withoutDate) || withoutDate.includes(title)) {
+        if (normalizeForMatching(title) === normalizedWithoutDate) {
+          return ad;
+        }
+      }
+      
+      // Then try partial match
+      for (const [title, ad] of adsMap.entries()) {
+        const normalizedTitle = normalizeForMatching(title);
+        if (normalizedTitle.includes(normalizedWithoutDate) || normalizedWithoutDate.includes(normalizedTitle)) {
+          return ad;
+        }
+      }
+    }
+    
+    // Try partial match with normalized strings
+    for (const [title, ad] of adsMap.entries()) {
+      const normalizedTitle = normalizeForMatching(title);
+      if (normalizedTitle.includes(normalizedAdName) || normalizedAdName.includes(normalizedTitle)) {
+        return ad;
+      }
+    }
+    
+    // Try removing common prefixes/suffixes
+    const withoutCopy = trimmedName.replace(/\s*-\s*copy(\s*\d*)?$/i, '').trim();
+    if (withoutCopy && withoutCopy !== trimmedName) {
+      const normalizedWithoutCopy = normalizeForMatching(withoutCopy);
+      for (const [title, ad] of adsMap.entries()) {
+        const normalizedTitle = normalizeForMatching(title);
+        if (normalizedTitle.includes(normalizedWithoutCopy) || normalizedWithoutCopy.includes(normalizedTitle)) {
+          return ad;
+        }
+      }
+    }
+    
+    // Try matching key phrases (e.g., "Jeremy Profile", "Video - Conversions - All Placements")
+    const keyPhrases = trimmedName.split(/\s*-\s*/).filter(p => p.length > 5);
+    if (keyPhrases.length > 0) {
+      for (const [title, ad] of adsMap.entries()) {
+        const titleLower = title.toLowerCase();
+        const matches = keyPhrases.filter(phrase => titleLower.includes(phrase.toLowerCase())).length;
+        // If at least 2 key phrases match, or if we have a significant match
+        if (matches >= Math.min(2, keyPhrases.length) || (keyPhrases.length === 1 && matches === 1 && keyPhrases[0].length > 10)) {
           return ad;
         }
       }
@@ -174,10 +221,10 @@ export default function AdPerformance() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50 sticky top-0 z-10">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50 z-20 w-20 border-r border-gray-300">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50 z-20 w-28 border-r border-gray-300">
                   Thumbnail
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-20 bg-gray-50 z-20 min-w-[200px]">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-28 bg-gray-50 z-20 min-w-[200px]">
                   Ad Name
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -220,42 +267,57 @@ export default function AdPerformance() {
                   <td className="px-4 py-2 sticky left-0 bg-white z-10 border-r border-gray-200">
                     {matchingAd ? (
                       matchingAd.type === 'image' ? (
-                        <div className="relative w-16 h-16 flex-shrink-0">
+                        <div className="relative w-20 h-20 flex-shrink-0 overflow-hidden rounded border border-gray-200">
                           <Image
                             src={matchingAd.url}
                             alt={matchingAd.title}
                             fill
-                            className="object-cover rounded"
+                            className="object-cover object-center"
+                            sizes="80px"
                             unoptimized
+                            style={{
+                              objectFit: 'cover',
+                              objectPosition: 'center',
+                            }}
                           />
                         </div>
                       ) : (
-                        <div className="relative w-16 h-16 flex-shrink-0 bg-black rounded overflow-hidden">
+                        <div className="relative w-20 h-20 flex-shrink-0 bg-black rounded overflow-hidden border border-gray-200">
                           <video
                             src={matchingAd.url}
-                            className="w-full h-full object-cover"
+                            className="w-full h-full object-cover object-center"
                             muted
                             playsInline
+                            preload="metadata"
+                            style={{
+                              objectFit: 'cover',
+                              objectPosition: 'center',
+                            }}
                             onMouseEnter={(e) => {
                               const video = e.currentTarget;
-                              video.currentTime = 1; // Show frame at 1 second
+                              video.currentTime = 0.5; // Show frame at 0.5 second for better thumbnail
                               video.play().catch(() => {}); // Auto-play on hover
                             }}
                             onMouseLeave={(e) => {
                               const video = e.currentTarget;
                               video.pause();
-                              video.currentTime = 0;
+                              video.currentTime = 0.5; // Keep at 0.5 second for consistent thumbnail
+                            }}
+                            onLoadedMetadata={(e) => {
+                              // Set video to show a frame at 0.5 seconds as thumbnail
+                              const video = e.currentTarget;
+                              video.currentTime = 0.5;
                             }}
                           />
                         </div>
                       )
                     ) : (
-                      <div className="w-16 h-16 bg-gray-200 rounded flex items-center justify-center">
+                      <div className="w-20 h-20 bg-gray-200 rounded flex items-center justify-center border border-gray-300">
                         <span className="text-xs text-gray-400 text-center px-1">No thumbnail</span>
                       </div>
                     )}
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-900 sticky left-20 bg-white z-10 min-w-[200px]">
+                  <td className="px-6 py-4 text-sm text-gray-900 sticky left-28 bg-white z-10 min-w-[200px]">
                     {row['Ad name'] || '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
