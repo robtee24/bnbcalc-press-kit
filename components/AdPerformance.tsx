@@ -41,7 +41,7 @@ export default function AdPerformance() {
           setData(results.data);
           setLoading(false);
         },
-        error: (error) => {
+        error: (error: Error) => {
           setError(error.message);
           setLoading(false);
         },
