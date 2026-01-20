@@ -121,3 +121,5 @@ npx prisma migrate deploy
 - Ensure all environment variables are set
 - Verify Prisma client is generated (should happen automatically in build)
 
+
+

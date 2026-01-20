@@ -39,3 +39,5 @@ postgresql://postgres.dbwglsptiubjulmegmbv:JeremyParker500!@aws-0-us-west-2.pool
 
 However, the `?pgbouncer=true` solution is recommended as it works with connection pooling while disabling prepared statements.
 
+
+

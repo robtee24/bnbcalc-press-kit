@@ -45,3 +45,5 @@ Once you've updated the DATABASE_URL and the deployment completes, try:
 
 All should work without the "prepared statement already exists" error.
 
+
+

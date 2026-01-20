@@ -79,3 +79,5 @@ eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRid2dsc3B
 - The `media` storage bucket MUST be public for images/videos to display
 - Make sure all 4 environment variables are set in Vercel before deploying
 
+
+

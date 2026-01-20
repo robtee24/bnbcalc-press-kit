@@ -51,3 +51,5 @@ If you can't find these settings:
 
 After updating the Framework Preset to "Next.js", Vercel should automatically redeploy. Wait for the deployment to complete and test again.
 
+
+

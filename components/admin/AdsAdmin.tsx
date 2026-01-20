@@ -12,10 +12,12 @@ interface MediaItem {
   platform: string | null;
 }
 
+import AdPerformanceMapping from './AdPerformanceMapping';
+
 export default function AdsAdmin() {
   const [images, setImages] = useState<MediaItem[]>([]);
   const [videos, setVideos] = useState<MediaItem[]>([]);
-  const [activeTab, setActiveTab] = useState<'images' | 'videos'>('images');
+  const [activeTab, setActiveTab] = useState<'images' | 'videos' | 'mappings'>('images');
   const [uploadFiles, setUploadFiles] = useState<File[]>([]);
   const [uploadTitle, setUploadTitle] = useState('');
   const [uploadDescription, setUploadDescription] = useState('');
@@ -330,9 +332,23 @@ export default function AdsAdmin() {
           >
             Videos
           </button>
+          <button
+            onClick={() => setActiveTab('mappings')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'mappings'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Ad Performance Mapping
+          </button>
         </nav>
       </div>
 
+      {activeTab === 'mappings' ? (
+        <AdPerformanceMapping />
+      ) : (
+        <>
       <div className="bg-white p-6 rounded-lg shadow">
         <h2 className="text-xl font-bold mb-4">Upload Ads - {activeTab === 'images' ? 'Images' : 'Videos'} (Multiple files supported)</h2>
         
@@ -663,6 +679,8 @@ export default function AdsAdmin() {
           <p className="text-gray-500 text-center py-8">No {activeTab} yet.</p>
         )}
       </div>
+        </>
+      )}
     </div>
   );
 }

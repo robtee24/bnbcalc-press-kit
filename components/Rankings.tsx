@@ -39,3 +39,5 @@ export default function Rankings({ onSelectMetric }: RankingsProps) {
   );
 }
 
+
+

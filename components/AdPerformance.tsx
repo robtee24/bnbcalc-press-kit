@@ -36,34 +36,21 @@ export default function AdPerformance() {
     fetchData();
   }, []);
 
-  const fetchAds = async () => {
+  const fetchMappings = async () => {
     try {
-      const [imagesRes, videosRes] = await Promise.all([
-        fetch('/api/media?type=image&category=ads'),
-        fetch('/api/media?type=video&category=ads'),
-      ]);
-      const imagesData = await imagesRes.json();
-      const videosData = await videosRes.json();
+      const response = await fetch('/api/ad-performance-mappings');
+      const mappings = await response.json();
       
-      const allAds: MediaItem[] = [...imagesData, ...videosData];
+      // Create a map of ad names to media items
       const map = new Map<string, MediaItem>();
-      
-      // Create a map of ad titles to media items
-      // Try exact match first, then try partial matches
-      allAds.forEach((ad) => {
-        const title = ad.title.trim();
-        map.set(title, ad);
-        
-        // Also try matching without special characters
-        const normalizedTitle = title.replace(/[^\w\s-]/g, '').trim();
-        if (normalizedTitle && normalizedTitle !== title) {
-          map.set(normalizedTitle, ad);
-        }
+      mappings.forEach((mapping: { adName: string; media: MediaItem }) => {
+        map.set(mapping.adName, mapping.media);
       });
       
+      console.log('Fetched mappings:', map.size, 'total');
       setAdsMap(map);
     } catch (err) {
-      console.error('Error fetching ads:', err);
+      console.error('Error fetching mappings:', err);
     }
   };
 
@@ -77,72 +64,10 @@ export default function AdPerformance() {
 
   const findMatchingAd = (adName: string): MediaItem | null => {
     const trimmedName = adName.trim();
-    const normalizedAdName = normalizeForMatching(trimmedName);
     
-    // Try exact match (case-insensitive)
-    for (const [title, ad] of adsMap.entries()) {
-      if (normalizeForMatching(title) === normalizedAdName) {
-        return ad;
-      }
-    }
-    
-    // Try exact match with original case
+    // Direct lookup from mappings
     if (adsMap.has(trimmedName)) {
       return adsMap.get(trimmedName)!;
-    }
-    
-    // Try matching after removing date prefixes like "4/16 - ", "11/24 - ", etc.
-    const withoutDate = trimmedName.replace(/^\d{1,2}\/\d{1,2}\s*-\s*/i, '').trim();
-    if (withoutDate && withoutDate !== trimmedName) {
-      const normalizedWithoutDate = normalizeForMatching(withoutDate);
-      
-      // First try normalized match
-      for (const [title, ad] of adsMap.entries()) {
-        if (normalizeForMatching(title) === normalizedWithoutDate) {
-          return ad;
-        }
-      }
-      
-      // Then try partial match
-      for (const [title, ad] of adsMap.entries()) {
-        const normalizedTitle = normalizeForMatching(title);
-        if (normalizedTitle.includes(normalizedWithoutDate) || normalizedWithoutDate.includes(normalizedTitle)) {
-          return ad;
-        }
-      }
-    }
-    
-    // Try partial match with normalized strings
-    for (const [title, ad] of adsMap.entries()) {
-      const normalizedTitle = normalizeForMatching(title);
-      if (normalizedTitle.includes(normalizedAdName) || normalizedAdName.includes(normalizedTitle)) {
-        return ad;
-      }
-    }
-    
-    // Try removing common prefixes/suffixes
-    const withoutCopy = trimmedName.replace(/\s*-\s*copy(\s*\d*)?$/i, '').trim();
-    if (withoutCopy && withoutCopy !== trimmedName) {
-      const normalizedWithoutCopy = normalizeForMatching(withoutCopy);
-      for (const [title, ad] of adsMap.entries()) {
-        const normalizedTitle = normalizeForMatching(title);
-        if (normalizedTitle.includes(normalizedWithoutCopy) || normalizedWithoutCopy.includes(normalizedTitle)) {
-          return ad;
-        }
-      }
-    }
-    
-    // Try matching key phrases (e.g., "Jeremy Profile", "Video - Conversions - All Placements")
-    const keyPhrases = trimmedName.split(/\s*-\s*/).filter(p => p.length > 5);
-    if (keyPhrases.length > 0) {
-      for (const [title, ad] of adsMap.entries()) {
-        const titleLower = title.toLowerCase();
-        const matches = keyPhrases.filter(phrase => titleLower.includes(phrase.toLowerCase())).length;
-        // If at least 2 key phrases match, or if we have a significant match
-        if (matches >= Math.min(2, keyPhrases.length) || (keyPhrases.length === 1 && matches === 1 && keyPhrases[0].length > 10)) {
-          return ad;
-        }
-      }
     }
     
     return null;
@@ -150,8 +75,8 @@ export default function AdPerformance() {
 
   const fetchData = async () => {
     try {
-      // Fetch both CSV and ads in parallel
-      await fetchAds();
+      // Fetch both CSV and mappings in parallel
+      await fetchMappings();
       
       const response = await fetch('/ads-performance.csv');
       if (!response.ok) {
@@ -162,6 +87,8 @@ export default function AdPerformance() {
         header: true,
         skipEmptyLines: true,
         complete: (results) => {
+          console.log('CSV parsed, rows:', results.data.length);
+          console.log('Sample CSV ad names:', results.data.slice(0, 5).map((row: AdPerformanceRow) => row['Ad name']));
           setData(results.data);
           setLoading(false);
         },
@@ -212,9 +139,24 @@ export default function AdPerformance() {
     );
   }
 
+  // Debug: Count how many matches we found
+  const matchedCount = data.filter(row => findMatchingAd(row['Ad name'] || '')).length;
+  
   return (
     <div>
       <h1 className="text-3xl font-bold mb-6">Ad Performance</h1>
+      
+      {/* Debug info */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded text-sm">
+          <p><strong>Debug Info:</strong></p>
+          <p>Total CSV rows: {data.length}</p>
+          <p>Ads in database: {adsMap.size}</p>
+          <p>Matched thumbnails: {matchedCount}</p>
+          <p>Sample ad titles from DB: {Array.from(adsMap.keys()).slice(0, 3).join(', ')}</p>
+          <p>Sample CSV ad names: {data.slice(0, 3).map(r => r['Ad name']).join(', ')}</p>
+        </div>
+      )}
       
       <div className="bg-white rounded-lg shadow-md overflow-hidden">
         <div className="overflow-x-auto max-h-[calc(100vh-12rem)] overflow-y-auto">
@@ -261,7 +203,11 @@ export default function AdPerformance() {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {data.map((row, index) => {
-                const matchingAd = findMatchingAd(row['Ad name'] || '');
+                const adName = row['Ad name'] || '';
+                const matchingAd = findMatchingAd(adName);
+                if (!matchingAd && index < 3) {
+                  console.log('No match found for:', adName, '| Available titles:', Array.from(adsMap.keys()).slice(0, 3));
+                }
                 return (
                 <tr key={index} className="hover:bg-gray-50">
                   <td className="px-4 py-2 sticky left-0 bg-white z-10 border-r border-gray-200">
