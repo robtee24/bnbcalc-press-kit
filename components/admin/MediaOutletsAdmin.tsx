@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 interface MediaOutlet {
   id: string;
@@ -65,6 +65,19 @@ export default function MediaOutletsAdmin() {
   const [bulkType, setBulkType] = useState('local_news');
   const [bulkEntries, setBulkEntries] = useState('');
   const [bulkLoading, setBulkLoading] = useState(false);
+
+  // Crawl state
+  const [showCrawl, setShowCrawl] = useState(false);
+  const [crawlRunning, setCrawlRunning] = useState(false);
+  const [crawlMarkets, setCrawlMarkets] = useState<string[]>([]);
+  const [crawlExistingCounts, setCrawlExistingCounts] = useState<Record<string, number>>({});
+  const [crawlProgress, setCrawlProgress] = useState(0);
+  const [crawlTotal, setCrawlTotal] = useState(0);
+  const [crawlCurrentMarket, setCrawlCurrentMarket] = useState('');
+  const [crawlResults, setCrawlResults] = useState<{ market: string; discovered: number; saved: number }[]>([]);
+  const [crawlLog, setCrawlLog] = useState<string[]>([]);
+  const [crawlLoadingMarkets, setCrawlLoadingMarkets] = useState(false);
+  const [crawlPaused, setCrawlPaused] = useState(false);
 
   useEffect(() => {
     fetchOutlets();
@@ -261,6 +274,100 @@ export default function MediaOutletsAdmin() {
     setBulkLoading(false);
   };
 
+  // Fetch all markets from the crawl API
+  const fetchCrawlMarkets = async () => {
+    setCrawlLoadingMarkets(true);
+    try {
+      const response = await fetch('/api/media-outlets/crawl');
+      if (!response.ok) throw new Error('Failed to fetch markets');
+      const data = await response.json();
+      setCrawlMarkets(data.markets || []);
+      setCrawlExistingCounts(data.existingCounts || {});
+      setCrawlTotal(data.total || 0);
+    } catch (error) {
+      console.error('Error fetching markets:', error);
+      alert('Error fetching markets. Make sure you are logged in as admin.');
+    } finally {
+      setCrawlLoadingMarkets(false);
+    }
+  };
+
+  // Crawl all markets sequentially
+  const crawlPauseRef = useRef(false);
+
+  const startCrawl = async (marketsToProcess?: string[]) => {
+    const targetMarkets = marketsToProcess || crawlMarkets;
+    if (targetMarkets.length === 0) return;
+
+    setCrawlRunning(true);
+    setCrawlPaused(false);
+    setCrawlProgress(0);
+    setCrawlResults([]);
+    setCrawlLog([]);
+    crawlPauseRef.current = false;
+
+    for (let i = 0; i < targetMarkets.length; i++) {
+      if (crawlPauseRef.current) {
+        setCrawlLog((prev) => [...prev, `Paused at market ${i + 1}/${targetMarkets.length}`]);
+        setCrawlRunning(false);
+        return;
+      }
+
+      const market = targetMarkets[i];
+      setCrawlCurrentMarket(market);
+      setCrawlProgress(i);
+      setCrawlLog((prev) => [...prev, `[${i + 1}/${targetMarkets.length}] Crawling ${market}...`]);
+
+      try {
+        const response = await fetch('/api/media-outlets/crawl', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ market, autoSave: true }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setCrawlResults((prev) => [
+            ...prev,
+            { market, discovered: data.discovered, saved: data.saved },
+          ]);
+          setCrawlLog((prev) => [
+            ...prev,
+            `  Found ${data.discovered} outlets, saved ${data.saved} new (${data.skippedDuplicates || 0} duplicates skipped)`,
+          ]);
+        } else {
+          setCrawlLog((prev) => [...prev, `  Error crawling ${market}: ${response.status}`]);
+        }
+      } catch (error) {
+        setCrawlLog((prev) => [...prev, `  Error crawling ${market}: ${error}`]);
+      }
+
+      // Delay between markets to avoid overwhelming the server
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+
+    setCrawlProgress(targetMarkets.length);
+    setCrawlCurrentMarket('');
+    setCrawlRunning(false);
+    setCrawlLog((prev) => [...prev, 'Crawl complete!']);
+    fetchOutlets(); // Refresh the outlets list
+  };
+
+  const pauseCrawl = () => {
+    crawlPauseRef.current = true;
+    setCrawlPaused(true);
+  };
+
+  // Crawl only markets that have no existing outlets
+  const crawlNewMarketsOnly = () => {
+    const newMarkets = crawlMarkets.filter((m) => !crawlExistingCounts[m]);
+    if (newMarkets.length === 0) {
+      alert('All markets already have outlets in the database.');
+      return;
+    }
+    startCrawl(newMarkets);
+  };
+
   const filteredOutlets = outlets.filter((o) => {
     if (filterMarket && o.market !== filterMarket) return false;
     if (filterType && o.type !== filterType) return false;
@@ -274,22 +381,35 @@ export default function MediaOutletsAdmin() {
       {/* Action buttons */}
       <div className="flex flex-wrap gap-2">
         <button
-          onClick={() => { setShowForm(!showForm); setShowDiscover(false); setShowBulkAdd(false); }}
+          onClick={() => { setShowForm(!showForm); setShowDiscover(false); setShowBulkAdd(false); setShowCrawl(false); }}
           className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
         >
           {showForm ? 'Cancel' : 'Add Outlet'}
         </button>
         <button
-          onClick={() => { setShowBulkAdd(!showBulkAdd); setShowForm(false); setShowDiscover(false); }}
+          onClick={() => { setShowBulkAdd(!showBulkAdd); setShowForm(false); setShowDiscover(false); setShowCrawl(false); }}
           className="px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600 text-sm"
         >
           {showBulkAdd ? 'Cancel Bulk' : 'Bulk Add'}
         </button>
         <button
-          onClick={() => { setShowDiscover(!showDiscover); setShowForm(false); setShowBulkAdd(false); }}
+          onClick={() => { setShowDiscover(!showDiscover); setShowForm(false); setShowBulkAdd(false); setShowCrawl(false); }}
           className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 text-sm"
         >
           {showDiscover ? 'Cancel' : 'Discover Outlets'}
+        </button>
+        <button
+          onClick={() => {
+            const newState = !showCrawl;
+            setShowCrawl(newState);
+            setShowForm(false);
+            setShowBulkAdd(false);
+            setShowDiscover(false);
+            if (newState && crawlMarkets.length === 0) fetchCrawlMarkets();
+          }}
+          className="px-4 py-2 bg-orange-500 text-white rounded hover:bg-orange-600 text-sm"
+        >
+          {showCrawl ? 'Cancel' : 'Crawl All Markets'}
         </button>
       </div>
 
@@ -481,6 +601,110 @@ export default function MediaOutletsAdmin() {
                 </div>
               </div>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* Crawl all markets */}
+      {showCrawl && (
+        <div className="bg-white p-6 rounded-lg shadow">
+          <h3 className="text-lg font-bold mb-4">Crawl All Markets</h3>
+          <p className="text-sm text-gray-600 mb-4">
+            This will search the web for local news outlets, real estate publications, and realtor/brokerage blogs
+            for every market in your database and automatically save results.
+          </p>
+
+          {crawlLoadingMarkets ? (
+            <div className="text-gray-500">Loading markets from database...</div>
+          ) : crawlMarkets.length === 0 ? (
+            <div className="text-gray-500">
+              No markets found in database.{' '}
+              <button onClick={fetchCrawlMarkets} className="text-blue-500 underline">
+                Retry
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="mb-4 p-3 bg-gray-50 rounded">
+                <p className="text-sm font-medium">
+                  {crawlMarkets.length} markets found in database
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {Object.keys(crawlExistingCounts).length} markets already have outlets |{' '}
+                  {crawlMarkets.filter((m) => !crawlExistingCounts[m]).length} markets with no outlets yet
+                </p>
+              </div>
+
+              {!crawlRunning ? (
+                <div className="flex flex-wrap gap-2 mb-4">
+                  <button
+                    onClick={() => startCrawl()}
+                    className="px-4 py-2 bg-orange-500 text-white rounded hover:bg-orange-600 text-sm font-medium"
+                  >
+                    Crawl All {crawlMarkets.length} Markets
+                  </button>
+                  <button
+                    onClick={crawlNewMarketsOnly}
+                    className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm font-medium"
+                  >
+                    Crawl Only New Markets ({crawlMarkets.filter((m) => !crawlExistingCounts[m]).length})
+                  </button>
+                  <button
+                    onClick={fetchCrawlMarkets}
+                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm"
+                  >
+                    Refresh Market List
+                  </button>
+                </div>
+              ) : (
+                <div className="mb-4">
+                  <button
+                    onClick={pauseCrawl}
+                    className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 text-sm font-medium"
+                  >
+                    Pause Crawl
+                  </button>
+                </div>
+              )}
+
+              {/* Progress bar */}
+              {(crawlRunning || crawlProgress > 0) && (
+                <div className="mb-4">
+                  <div className="flex justify-between text-sm text-gray-600 mb-1">
+                    <span>
+                      {crawlRunning ? `Crawling: ${crawlCurrentMarket}` : crawlPaused ? 'Paused' : 'Complete'}
+                    </span>
+                    <span>{crawlProgress}/{crawlTotal || crawlMarkets.length}</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-3">
+                    <div
+                      className={`h-3 rounded-full transition-all duration-300 ${crawlRunning ? 'bg-orange-500' : crawlPaused ? 'bg-yellow-500' : 'bg-green-500'}`}
+                      style={{ width: `${((crawlProgress) / (crawlTotal || crawlMarkets.length)) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Results summary */}
+              {crawlResults.length > 0 && (
+                <div className="mb-4 p-3 bg-green-50 rounded">
+                  <p className="text-sm font-medium text-green-800">
+                    Processed {crawlResults.length} markets |
+                    Found {crawlResults.reduce((a, r) => a + r.discovered, 0)} total outlets |
+                    Saved {crawlResults.reduce((a, r) => a + r.saved, 0)} new entries
+                  </p>
+                </div>
+              )}
+
+              {/* Log output */}
+              {crawlLog.length > 0 && (
+                <div className="bg-gray-900 text-green-400 p-4 rounded font-mono text-xs max-h-64 overflow-y-auto">
+                  {crawlLog.map((line, i) => (
+                    <div key={i}>{line}</div>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
