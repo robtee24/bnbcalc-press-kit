@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
+import SearchableAdDropdown from './SearchableAdDropdown';
 
 interface MediaItem {
   id: string;
@@ -14,7 +15,9 @@ interface MediaItem {
 export default function MediaAdmin() {
   const [images, setImages] = useState<MediaItem[]>([]);
   const [videos, setVideos] = useState<MediaItem[]>([]);
-  const [activeTab, setActiveTab] = useState<'images' | 'videos'>('images');
+  const [activeTab, setActiveTab] = useState<'upload' | 'images' | 'videos'>('upload');
+  const [uploadType, setUploadType] = useState<'images' | 'videos'>('images');
+  const [mediaAttachments, setMediaAttachments] = useState<Map<string, string>>(new Map()); // mediaId -> adName
   const [uploadFiles, setUploadFiles] = useState<File[]>([]);
   const [uploadTitle, setUploadTitle] = useState('');
   const [uploadDescription, setUploadDescription] = useState('');
@@ -31,6 +34,7 @@ export default function MediaAdmin() {
 
   useEffect(() => {
     fetchMedia();
+    fetchAttachments();
   }, []);
 
   const fetchMedia = async () => {
@@ -45,6 +49,64 @@ export default function MediaAdmin() {
       setVideos(videosData);
     } catch (error) {
       console.error('Error fetching media:', error);
+    }
+  };
+
+  const fetchAttachments = async () => {
+    try {
+      const response = await fetch('/api/ad-performance-mappings');
+      const mappings = await response.json();
+      const attachmentsMap = new Map<string, string>();
+      mappings.forEach((mapping: { mediaId: string; adName: string }) => {
+        attachmentsMap.set(mapping.mediaId, mapping.adName);
+      });
+      setMediaAttachments(attachmentsMap);
+    } catch (error) {
+      console.error('Error fetching attachments:', error);
+    }
+  };
+
+  const handleAttachToAd = async (mediaId: string, adName: string) => {
+    try {
+      const response = await fetch('/api/ad-performance-mappings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adName, mediaId }),
+      });
+
+      if (response.ok) {
+        const newAttachments = new Map(mediaAttachments);
+        newAttachments.set(mediaId, adName);
+        setMediaAttachments(newAttachments);
+        alert('Attached to ad successfully!');
+      } else {
+        alert('Error attaching to ad');
+      }
+    } catch (error) {
+      console.error('Error attaching to ad:', error);
+      alert('Error attaching to ad');
+    }
+  };
+
+  const handleDetachFromAd = async (mediaId: string, adName: string) => {
+    if (!confirm(`Remove attachment from "${adName}"?`)) return;
+
+    try {
+      const response = await fetch(`/api/ad-performance-mappings?adName=${encodeURIComponent(adName)}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        const newAttachments = new Map(mediaAttachments);
+        newAttachments.delete(mediaId);
+        setMediaAttachments(newAttachments);
+        alert('Attachment removed successfully!');
+      } else {
+        alert('Error removing attachment');
+      }
+    } catch (error) {
+      console.error('Error removing attachment:', error);
+      alert('Error removing attachment');
     }
   };
 
@@ -67,7 +129,7 @@ export default function MediaAdmin() {
         formData.append('file', file);
         formData.append('title', uploadTitle || file.name.replace(/\.[^/.]+$/, ''));
         formData.append('description', uploadDescription);
-        formData.append('type', activeTab.slice(0, -1)); // 'images' -> 'image', 'videos' -> 'video'
+        formData.append('type', uploadType.slice(0, -1)); // 'images' -> 'image', 'videos' -> 'video'
         formData.append('category', 'media');
 
         const response = await fetch('/api/media', {
@@ -251,9 +313,9 @@ export default function MediaAdmin() {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                [activeTab === 'images' ? 'imageUrl' : 'videoUrl']: url,
+                [uploadType === 'images' ? 'imageUrl' : 'videoUrl']: url,
                 category: 'media',
-                type: activeTab.slice(0, -1), // 'images' -> 'image', 'videos' -> 'video'
+                type: uploadType.slice(0, -1), // 'images' -> 'image', 'videos' -> 'video'
               }),
             });
 
@@ -277,12 +339,12 @@ export default function MediaAdmin() {
       setBulkProgress({ current: urlLines.length, total: urlLines.length, success: successCount, failed: failedCount });
       
       if (successCount > 0) {
-        alert(`Bulk upload complete! ${successCount} ${activeTab}(s) uploaded successfully${failedCount > 0 ? `, ${failedCount} failed` : ''}.`);
+        alert(`Bulk upload complete! ${successCount} ${uploadType}(s) uploaded successfully${failedCount > 0 ? `, ${failedCount} failed` : ''}.`);
         setBulkUrls('');
         setShowBulkUpload(false);
         fetchMedia();
       } else {
-        alert(`Bulk upload failed. All ${failedCount} ${activeTab}(s) failed to upload. Please check the URLs and try again.`);
+        alert(`Bulk upload failed. All ${failedCount} ${uploadType}(s) failed to upload. Please check the URLs and try again.`);
       }
     } catch (error) {
       console.error('Error during bulk upload:', error);
@@ -299,6 +361,16 @@ export default function MediaAdmin() {
     <div className="space-y-6">
       <div className="border-b border-gray-200">
         <nav className="-mb-px flex space-x-8">
+          <button
+            onClick={() => setActiveTab('upload')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'upload'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Upload
+          </button>
           <button
             onClick={() => setActiveTab('images')}
             className={`py-2 px-1 border-b-2 font-medium text-sm ${
@@ -322,14 +394,45 @@ export default function MediaAdmin() {
         </nav>
       </div>
 
-      <div className="bg-white p-6 rounded-lg shadow">
-        <h2 className="text-xl font-bold mb-4">Upload {activeTab === 'images' ? 'Images' : 'Videos'} (Multiple files supported)</h2>
-        
+      {activeTab === 'upload' && (
+        <div className="bg-white p-6 rounded-lg shadow">
+          <h2 className="text-xl font-bold mb-4">Upload Media</h2>
+          
+          {/* Type selector */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Upload Type
+            </label>
+            <div className="flex space-x-4">
+              <button
+                type="button"
+                onClick={() => setUploadType('images')}
+                className={`px-4 py-2 rounded ${
+                  uploadType === 'images'
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                Images
+              </button>
+              <button
+                type="button"
+                onClick={() => setUploadType('videos')}
+                className={`px-4 py-2 rounded ${
+                  uploadType === 'videos'
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                Videos
+              </button>
+            </div>
+          </div>
+
           {/* URL Upload Section - For Images and Videos */}
-          {(activeTab === 'images' || activeTab === 'videos') && (
           <div className="mb-6 space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Upload {activeTab === 'images' ? 'Image' : 'Video'} from URL</h3>
+              <h3 className="text-lg font-semibold">Upload {uploadType === 'images' ? 'Image' : 'Video'} from URL</h3>
               <button
                 type="button"
                 onClick={() => setShowBulkUpload(!showBulkUpload)}
@@ -342,11 +445,11 @@ export default function MediaAdmin() {
             {/* Bulk Upload Modal */}
             {showBulkUpload && (
               <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                <h4 className="font-semibold mb-3">Bulk Add {activeTab === 'images' ? 'Images' : 'Videos'} (up to 100 URLs)</h4>
+                <h4 className="font-semibold mb-3">Bulk Add {uploadType === 'images' ? 'Images' : 'Videos'} (up to 100 URLs)</h4>
                 <form onSubmit={handleBulkUpload} className="space-y-3">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      {activeTab === 'images' ? 'Image' : 'Video'} URLs (one per line)
+                      {uploadType === 'images' ? 'Image' : 'Video'} URLs (one per line)
                     </label>
                     <textarea
                       value={bulkUrls}
@@ -356,7 +459,7 @@ export default function MediaAdmin() {
                           setBulkUrls(e.target.value);
                         }
                       }}
-                      placeholder={activeTab === 'images' 
+                      placeholder={uploadType === 'images' 
                         ? "https://example.com/image1.jpg&#10;https://example.com/image2.jpg&#10;https://example.com/image3.jpg"
                         : "https://example.com/video1.mp4&#10;https://example.com/video2.mp4&#10;https://example.com/video3.mp4"}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -364,7 +467,7 @@ export default function MediaAdmin() {
                       required
                     />
                     <p className="mt-1 text-xs text-gray-500">
-                      Paste up to 100 {activeTab === 'images' ? 'image' : 'video'} URLs, one per line. {activeTab === 'images' ? 'Direct image URLs or page URLs with OG images are supported.' : 'Videos will be downloaded and saved as MP4. Title will be auto-generated from the filename.'}
+                      Paste up to 100 {uploadType === 'images' ? 'image' : 'video'} URLs, one per line. {uploadType === 'images' ? 'Direct image URLs or page URLs with OG images are supported.' : 'Videos will be downloaded and saved as MP4. Title will be auto-generated from the filename.'}
                     </p>
                     {bulkUrls && (
                       <p className="mt-1 text-xs text-gray-600">
@@ -436,18 +539,17 @@ export default function MediaAdmin() {
               </form>
             )}
           </div>
-        )}
-
-        <div className="border-t pt-6">
-          <h3 className="text-lg font-semibold mb-3">Upload Files</h3>
-          <form onSubmit={handleUpload} className="space-y-4">
+            {/* File Upload Section */}
+            <div className="border-t pt-6 mt-6">
+              <h3 className="text-lg font-semibold mb-3">Upload Files</h3>
+              <form onSubmit={handleUpload} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Files {uploadFiles.length > 0 && `(${uploadFiles.length} selected)`}
             </label>
             <input
               type="file"
-              accept={activeTab === 'images' ? 'image/*' : 'video/*'}
+              accept={uploadType === 'images' ? 'image/*' : 'video/*'}
               multiple
               onChange={(e) => {
                 const files = Array.from(e.target.files || []);
@@ -503,11 +605,13 @@ export default function MediaAdmin() {
             {loading ? `Uploading... (${uploadProgress?.current || 0}/${uploadProgress?.total || 0})` : `Upload ${uploadFiles.length} file(s)`}
           </button>
         </form>
-        </div>
-      </div>
+            </div>
+          </div>
+      )}
 
-      <div className="bg-white p-6 rounded-lg shadow">
-        <h2 className="text-xl font-bold mb-4">{activeTab === 'images' ? 'Images' : 'Videos'}</h2>
+      {activeTab !== 'upload' && (
+        <div className="bg-white p-6 rounded-lg shadow">
+          <h2 className="text-xl font-bold mb-4">{activeTab === 'images' ? 'Images' : 'Videos'}</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {currentMedia.map((item) => (
             <div key={item.id} className="border rounded-lg overflow-hidden">
@@ -565,6 +669,39 @@ export default function MediaAdmin() {
                     {item.description && (
                       <p className="text-sm text-gray-600 mb-2">{item.description}</p>
                     )}
+                    
+                    {/* Attachment Section */}
+                    <div className="mb-3 p-2 bg-gray-50 rounded">
+                      {mediaAttachments.has(item.id) ? (
+                        <div>
+                          <p className="text-xs text-gray-500 mb-1">Attached to ad:</p>
+                          <p className="text-sm font-medium text-blue-600 mb-1">
+                            {mediaAttachments.get(item.id)}
+                          </p>
+                          <button
+                            onClick={() => handleDetachFromAd(item.id, mediaAttachments.get(item.id)!)}
+                            className="text-xs text-red-600 hover:text-red-800"
+                          >
+                            Remove attachment
+                          </button>
+                        </div>
+                      ) : (
+                        <div>
+                          <p className="text-xs text-gray-500 mb-1">Not attached to any ad</p>
+                          <SearchableAdDropdown
+                            selectedAdName=""
+                            onSelect={(adName) => {
+                              if (adName) {
+                                handleAttachToAd(item.id, adName);
+                              }
+                            }}
+                            placeholder="Attach to ad..."
+                            className="mt-1"
+                          />
+                        </div>
+                      )}
+                    </div>
+
                     <div className="flex space-x-2">
                       <button
                         onClick={() => handleEdit(item)}
@@ -588,7 +725,8 @@ export default function MediaAdmin() {
         {currentMedia.length === 0 && (
           <p className="text-gray-500 text-center py-8">No {activeTab} yet.</p>
         )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

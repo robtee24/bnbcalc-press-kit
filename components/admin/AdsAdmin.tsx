@@ -13,11 +13,15 @@ interface MediaItem {
 }
 
 import AdPerformanceMapping from './AdPerformanceMapping';
+import SearchableAdDropdown from './SearchableAdDropdown';
 
 export default function AdsAdmin() {
   const [images, setImages] = useState<MediaItem[]>([]);
   const [videos, setVideos] = useState<MediaItem[]>([]);
-  const [activeTab, setActiveTab] = useState<'images' | 'videos' | 'mappings'>('images');
+  const [activeTab, setActiveTab] = useState<'upload' | 'images' | 'videos' | 'mappings'>('upload');
+  const [uploadType, setUploadType] = useState<'images' | 'videos'>('images');
+  const [uploadAdName, setUploadAdName] = useState<string>('');
+  const [adsAttachments, setAdsAttachments] = useState<Map<string, string>>(new Map()); // mediaId -> adName
   const [uploadFiles, setUploadFiles] = useState<File[]>([]);
   const [uploadTitle, setUploadTitle] = useState('');
   const [uploadDescription, setUploadDescription] = useState('');
@@ -37,6 +41,7 @@ export default function AdsAdmin() {
 
   useEffect(() => {
     fetchAds();
+    fetchAttachments();
   }, []);
 
   const fetchAds = async () => {
@@ -53,6 +58,64 @@ export default function AdsAdmin() {
       console.error('Error fetching ads:', error);
       setImages([]);
       setVideos([]);
+    }
+  };
+
+  const fetchAttachments = async () => {
+    try {
+      const response = await fetch('/api/ad-performance-mappings');
+      const mappings = await response.json();
+      const attachmentsMap = new Map<string, string>();
+      mappings.forEach((mapping: { mediaId: string; adName: string }) => {
+        attachmentsMap.set(mapping.mediaId, mapping.adName);
+      });
+      setAdsAttachments(attachmentsMap);
+    } catch (error) {
+      console.error('Error fetching attachments:', error);
+    }
+  };
+
+  const handleAttachToAd = async (mediaId: string, adName: string) => {
+    try {
+      const response = await fetch('/api/ad-performance-mappings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adName, mediaId }),
+      });
+
+      if (response.ok) {
+        const newAttachments = new Map(adsAttachments);
+        newAttachments.set(mediaId, adName);
+        setAdsAttachments(newAttachments);
+        alert('Attached to ad successfully!');
+      } else {
+        alert('Error attaching to ad');
+      }
+    } catch (error) {
+      console.error('Error attaching to ad:', error);
+      alert('Error attaching to ad');
+    }
+  };
+
+  const handleDetachFromAd = async (mediaId: string, adName: string) => {
+    if (!confirm(`Remove attachment from "${adName}"?`)) return;
+
+    try {
+      const response = await fetch(`/api/ad-performance-mappings?adName=${encodeURIComponent(adName)}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        const newAttachments = new Map(adsAttachments);
+        newAttachments.delete(mediaId);
+        setAdsAttachments(newAttachments);
+        alert('Attachment removed successfully!');
+      } else {
+        alert('Error removing attachment');
+      }
+    } catch (error) {
+      console.error('Error removing attachment:', error);
+      alert('Error removing attachment');
     }
   };
 
@@ -75,7 +138,7 @@ export default function AdsAdmin() {
         formData.append('file', file);
         formData.append('title', uploadTitle || file.name.replace(/\.[^/.]+$/, ''));
         formData.append('description', uploadDescription);
-        formData.append('type', activeTab.slice(0, -1)); // 'images' -> 'image', 'videos' -> 'video'
+        formData.append('type', uploadType.slice(0, -1)); // 'images' -> 'image', 'videos' -> 'video'
         formData.append('category', 'ads');
         if (uploadPlatform) {
           formData.append('platform', uploadPlatform);
@@ -108,7 +171,9 @@ export default function AdsAdmin() {
         setUploadTitle('');
         setUploadDescription('');
         setUploadPlatform('');
+        setUploadAdName('');
         fetchAds();
+        fetchAttachments();
       } else {
         alert(`Error uploading files. ${errorCount} file(s) failed.`);
       }
@@ -131,19 +196,27 @@ export default function AdsAdmin() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          [activeTab === 'images' ? 'imageUrl' : 'videoUrl']: uploadUrl,
+          [uploadType === 'images' ? 'imageUrl' : 'videoUrl']: uploadUrl,
           category: 'ads',
-          type: activeTab.slice(0, -1), // 'images' -> 'image', 'videos' -> 'video'
+          type: uploadType.slice(0, -1), // 'images' -> 'image', 'videos' -> 'video'
           platform: uploadPlatform || null,
         }),
       });
 
         if (response.ok) {
           const result = await response.json();
-          alert(`${activeTab === 'images' ? 'Image' : 'Video'} uploaded successfully! Title: ${result.title}`);
+          
+          // If an ad name was selected during upload, attach it
+          if (uploadAdName && result.id) {
+            await handleAttachToAd(result.id, uploadAdName);
+          }
+          
+          alert(`${uploadType === 'images' ? 'Image' : 'Video'} uploaded successfully! Title: ${result.title}`);
           setUploadUrl('');
           setUploadPlatform('');
+          setUploadAdName('');
           fetchAds();
+          fetchAttachments();
         } else {
           const errorText = await response.text();
           let errorMessage = 'Unknown error';
@@ -260,9 +333,9 @@ export default function AdsAdmin() {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                [activeTab === 'images' ? 'imageUrl' : 'videoUrl']: url,
+                [uploadType === 'images' ? 'imageUrl' : 'videoUrl']: url,
                 category: 'ads',
-                type: activeTab.slice(0, -1), // 'images' -> 'image', 'videos' -> 'video'
+                type: uploadType.slice(0, -1), // 'images' -> 'image', 'videos' -> 'video'
                 platform: bulkPlatform || null,
               }),
             });
@@ -313,6 +386,16 @@ export default function AdsAdmin() {
       <div className="border-b border-gray-200">
         <nav className="-mb-px flex space-x-8">
           <button
+            onClick={() => setActiveTab('upload')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'upload'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Upload
+          </button>
+          <button
             onClick={() => setActiveTab('images')}
             className={`py-2 px-1 border-b-2 font-medium text-sm ${
               activeTab === 'images'
@@ -347,16 +430,46 @@ export default function AdsAdmin() {
 
       {activeTab === 'mappings' ? (
         <AdPerformanceMapping />
-      ) : (
-        <>
-      <div className="bg-white p-6 rounded-lg shadow">
-        <h2 className="text-xl font-bold mb-4">Upload Ads - {activeTab === 'images' ? 'Images' : 'Videos'} (Multiple files supported)</h2>
-        
-          {/* URL Upload Section - For Images and Videos */}
-          {(activeTab === 'images' || activeTab === 'videos') && (
+      ) : activeTab === 'upload' ? (
+        <div className="bg-white p-6 rounded-lg shadow">
+          <h2 className="text-xl font-bold mb-4">Upload Ads</h2>
+          
+          {/* Type selector */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Upload Type
+            </label>
+            <div className="flex space-x-4">
+              <button
+                type="button"
+                onClick={() => setUploadType('images')}
+                className={`px-4 py-2 rounded ${
+                  uploadType === 'images'
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                Images
+              </button>
+              <button
+                type="button"
+                onClick={() => setUploadType('videos')}
+                className={`px-4 py-2 rounded ${
+                  uploadType === 'videos'
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                Videos
+              </button>
+            </div>
+          </div>
+          {/* URL Upload Section */}
           <div className="mb-6 space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Upload {activeTab === 'images' ? 'Image' : 'Video'} from URL</h3>
+              <h3 className="text-lg font-semibold">
+                Upload {uploadType === 'images' ? 'Image' : 'Video'} from URL
+              </h3>
               <button
                 type="button"
                 onClick={() => setShowBulkUpload(!showBulkUpload)}
@@ -366,11 +479,13 @@ export default function AdsAdmin() {
               </button>
             </div>
 
-              {/* Bulk Upload Modal */}
-              {showBulkUpload && (
-                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                  <h4 className="font-semibold mb-3">Bulk Add {activeTab === 'images' ? 'Images' : 'Videos'} (up to 100 URLs)</h4>
-                  <form onSubmit={handleBulkUpload} className="space-y-3">
+            {/* Bulk Upload */}
+            {showBulkUpload && (
+              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <h4 className="font-semibold mb-3">
+                  Bulk Add {uploadType === 'images' ? 'Images' : 'Videos'} (up to 100 URLs)
+                </h4>
+                <form onSubmit={handleBulkUpload} className="space-y-3">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Platform (applies to all URLs)
@@ -390,35 +505,43 @@ export default function AdsAdmin() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      {activeTab === 'images' ? 'Image' : 'Video'} URLs (one per line)
+                      {uploadType === 'images' ? 'Image' : 'Video'} URLs (one per line)
                     </label>
                     <textarea
                       value={bulkUrls}
                       onChange={(e) => {
                         const lines = e.target.value.split('\n').length;
-                        if (lines <= 101) { // Allow up to 100 URLs + 1 empty line
+                        if (lines <= 101) {
+                          // Allow up to 100 URLs + 1 empty line
                           setBulkUrls(e.target.value);
                         }
                       }}
-                      placeholder={activeTab === 'images' 
-                        ? "https://example.com/image1.jpg&#10;https://example.com/image2.jpg&#10;https://example.com/image3.jpg"
-                        : "https://example.com/video1.mp4&#10;https://example.com/video2.mp4&#10;https://example.com/video3.mp4"}
+                      placeholder={
+                        uploadType === 'images'
+                          ? 'https://example.com/image1.jpg\nhttps://example.com/image2.jpg\nhttps://example.com/image3.jpg'
+                          : 'https://example.com/video1.mp4\nhttps://example.com/video2.mp4\nhttps://example.com/video3.mp4'
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                       rows={8}
                       required
                     />
                     <p className="mt-1 text-xs text-gray-500">
-                      Paste up to 100 {activeTab === 'images' ? 'image' : 'video'} URLs, one per line. {activeTab === 'images' ? 'Direct image URLs or page URLs with OG images are supported.' : 'Videos will be downloaded and saved as MP4. Title will be auto-generated from the filename.'}
+                      Paste up to 100 {uploadType === 'images' ? 'image' : 'video'} URLs, one per line.{' '}
+                      {uploadType === 'images'
+                        ? 'Direct image URLs or page URLs with OG images are supported.'
+                        : 'Videos will be downloaded and saved as MP4. Title will be auto-generated from the filename.'}
                     </p>
                     {bulkUrls && (
                       <p className="mt-1 text-xs text-gray-600">
-                        {bulkUrls.split('\n').filter(l => l.trim().length > 0).length} URL(s) detected
+                        {bulkUrls.split('\n').filter((l) => l.trim().length > 0).length} URL(s) detected
                       </p>
                     )}
                   </div>
                   {bulkProgress && (
                     <div className="text-sm text-gray-600">
-                      <div>Processing {bulkProgress.current} of {bulkProgress.total}...</div>
+                      <div>
+                        Processing {bulkProgress.current} of {bulkProgress.total}...
+                      </div>
                       <div className="mt-1">
                         <span className="text-green-600">✓ {bulkProgress.success} successful</span>
                         {bulkProgress.failed > 0 && (
@@ -455,61 +578,71 @@ export default function AdsAdmin() {
             {/* Single URL Upload */}
             {!showBulkUpload && (
               <form onSubmit={handleUrlUpload} className="space-y-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Image URL
-                </label>
-                <input
-                  type="url"
-                  value={uploadUrl}
-                  onChange={(e) => setUploadUrl(e.target.value)}
-                  placeholder="https://example.com/image.jpg or https://example.com/page-with-image"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-                <p className="mt-1 text-xs text-gray-500">
-                  Enter a direct image URL or a page URL. Title and description will be auto-generated.
-                </p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Platform (optional)
-                </label>
-                <select
-                  value={uploadPlatform}
-                  onChange={(e) => setUploadPlatform(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Select Platform</option>
-                      <option value="meta">Meta</option>
-                      <option value="reddit">Reddit</option>
-                      <option value="tiktok">TikTok</option>
-                      <option value="linkedin">LinkedIn</option>
-                      <option value="google">Google</option>
-                    </select>
-              </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    {uploadType === 'images' ? 'Image' : 'Video'} URL
+                  </label>
+                  <input
+                    type="url"
+                    value={uploadUrl}
+                    onChange={(e) => setUploadUrl(e.target.value)}
+                    placeholder="https://example.com/..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Enter a direct URL or a page URL. Title and description will be auto-generated.
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Platform (optional)</label>
+                  <select
+                    value={uploadPlatform}
+                    onChange={(e) => setUploadPlatform(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Select Platform</option>
+                    <option value="meta">Meta</option>
+                    <option value="reddit">Reddit</option>
+                    <option value="tiktok">TikTok</option>
+                    <option value="linkedin">LinkedIn</option>
+                    <option value="google">Google</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Attach to Ad (optional)</label>
+                  <SearchableAdDropdown
+                    selectedAdName={uploadAdName}
+                    onSelect={setUploadAdName}
+                    placeholder="Search and select an ad to attach..."
+                  />
+                </div>
                 <button
                   type="submit"
-                      disabled={loading || !uploadUrl}
-                      className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
-                    >
-                      {loading ? (activeTab === 'images' ? 'Downloading & Uploading...' : 'Downloading Video & Uploading...') : `Upload ${activeTab === 'images' ? 'Image' : 'Video'} from URL`}
-                    </button>
+                  disabled={loading || !uploadUrl}
+                  className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
+                >
+                  {loading
+                    ? uploadType === 'images'
+                      ? 'Downloading & Uploading...'
+                      : 'Downloading Video & Uploading...'
+                    : `Upload ${uploadType === 'images' ? 'Image' : 'Video'} from URL`}
+                </button>
               </form>
             )}
           </div>
-        )}
 
-        <div className="border-t pt-6">
-          <h3 className="text-lg font-semibold mb-3">Upload Files</h3>
-          <form onSubmit={handleUpload} className="space-y-4">
+          {/* File Upload Section */}
+          <div className="border-t pt-6 mt-6">
+            <h3 className="text-lg font-semibold mb-3">Upload Files</h3>
+            <form onSubmit={handleUpload} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Files {uploadFiles.length > 0 && `(${uploadFiles.length} selected)`}
             </label>
             <input
               type="file"
-              accept={activeTab === 'images' ? 'image/*' : 'video/*'}
+              accept={uploadType === 'images' ? 'image/*' : 'video/*'}
               multiple
               onChange={(e) => {
                 const files = Array.from(e.target.files || []);
@@ -582,11 +715,13 @@ export default function AdsAdmin() {
             {loading ? `Uploading... (${uploadProgress?.current || 0}/${uploadProgress?.total || 0})` : `Upload ${uploadFiles.length} file(s)`}
           </button>
         </form>
+          </div>
         </div>
-      </div>
+      ) : null}
 
-      <div className="bg-white p-6 rounded-lg shadow">
-        <h2 className="text-xl font-bold mb-4">Ads - {activeTab === 'images' ? 'Images' : 'Videos'}</h2>
+      {activeTab !== 'upload' && activeTab !== 'mappings' && (
+        <div className="bg-white p-6 rounded-lg shadow">
+          <h2 className="text-xl font-bold mb-4">Ads - {activeTab === 'images' ? 'Images' : 'Videos'}</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {currentMedia.map((item) => (
             <div key={item.id} className="border rounded-lg overflow-hidden">
@@ -678,8 +813,7 @@ export default function AdsAdmin() {
         {currentMedia.length === 0 && (
           <p className="text-gray-500 text-center py-8">No {activeTab} yet.</p>
         )}
-      </div>
-        </>
+        </div>
       )}
     </div>
   );
