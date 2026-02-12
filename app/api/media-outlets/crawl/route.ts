@@ -10,81 +10,109 @@ interface DiscoveredOutlet {
   description: string | null;
 }
 
-async function searchWeb(query: string): Promise<{ title: string; url: string; snippet: string }[]> {
+// ---- Search via Serper.dev (Google Search API, free tier: 2500 searches) ----
+async function searchSerper(query: string): Promise<{ title: string; url: string; snippet: string }[]> {
+  const apiKey = process.env.SERPER_API_KEY;
+  if (!apiKey) return [];
+
   try {
-    const response = await fetch(
-      `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`,
-      {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        },
-      }
-    );
-    if (!response.ok) return [];
-    const html = await response.text();
-    const results: { title: string; url: string; snippet: string }[] = [];
-    const resultBlocks = html.split('class="result__body"');
-    for (let i = 1; i < resultBlocks.length && results.length < 10; i++) {
-      const block = resultBlocks[i];
-      const urlMatch = block.match(/class="result__a"[^>]*href="([^"]+)"/);
-      const titleMatch = block.match(/class="result__a"[^>]*>([^<]+)</);
-      const snippetMatch = block.match(/class="result__snippet"[^>]*>([^<]*(?:<[^>]*>[^<]*)*)/);
-      if (urlMatch && titleMatch) {
-        let url = urlMatch[1];
-        const uddgMatch = url.match(/uddg=([^&]+)/);
-        if (uddgMatch) url = decodeURIComponent(uddgMatch[1]);
-        const title = titleMatch[1].replace(/<[^>]*>/g, '').trim();
-        const snippet = snippetMatch ? snippetMatch[1].replace(/<[^>]*>/g, '').trim() : '';
-        const skipDomains = [
-          'google.com', 'bing.com', 'yahoo.com', 'duckduckgo.com',
-          'facebook.com', 'twitter.com', 'instagram.com', 'youtube.com',
-          'linkedin.com', 'pinterest.com', 'reddit.com', 'tiktok.com',
-          'wikipedia.org', 'yelp.com', 'amazon.com',
-        ];
-        if (!skipDomains.some((d) => url.includes(d)) && url.startsWith('http')) {
-          results.push({ title, url, snippet });
-        }
-      }
+    const response = await fetch('https://google.serper.dev/search', {
+      method: 'POST',
+      headers: {
+        'X-API-KEY': apiKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ q: query, num: 10 }),
+    });
+
+    if (!response.ok) {
+      console.error(`Serper API error ${response.status}: ${await response.text()}`);
+      return [];
     }
-    return results;
+
+    const data = await response.json();
+    const organic = data.organic || [];
+
+    const skipDomains = [
+      'google.com', 'bing.com', 'yahoo.com', 'duckduckgo.com',
+      'facebook.com', 'twitter.com', 'x.com', 'instagram.com', 'youtube.com',
+      'linkedin.com', 'pinterest.com', 'reddit.com', 'tiktok.com',
+      'wikipedia.org', 'yelp.com', 'amazon.com', 'zillow.com',
+      'realtor.com', 'redfin.com', 'trulia.com', 'apartments.com',
+    ];
+
+    return organic
+      .filter((r: { link: string }) => {
+        const url = r.link || '';
+        return url.startsWith('http') && !skipDomains.some((d) => url.includes(d));
+      })
+      .map((r: { title: string; link: string; snippet: string }) => ({
+        title: r.title || '',
+        url: r.link || '',
+        snippet: r.snippet || '',
+      }));
   } catch (error) {
-    console.error(`Search error for query:`, error);
+    console.error('Serper search error:', error);
     return [];
   }
 }
 
+// ---- Email extraction from a website ----
 async function extractEmail(url: string): Promise<string | null> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
-    const response = await fetch(url, {
-      signal: controller.signal,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-      },
-    });
+
+    // Try homepage first, then /contact
+    for (const target of [url, `${url}/contact`, `${url}/about`]) {
+      try {
+        const response = await fetch(target, {
+          signal: controller.signal,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+          },
+          redirect: 'follow',
+        });
+        if (!response.ok) continue;
+
+        const html = await response.text();
+        const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+        const emails = html.match(emailRegex) || [];
+
+        const skipPatterns = [
+          'noreply', 'no-reply', 'donotreply', 'unsubscribe', 'privacy',
+          'example.com', 'sentry.io', 'wixpress.com', 'cloudflare',
+          '.png', '.jpg', '.gif', '.svg', '.css', '.js', '.woff',
+          'schema.org', 'wordpress', 'googleapis',
+        ];
+
+        const contactEmails = emails.filter((email) => {
+          const lower = email.toLowerCase();
+          return !skipPatterns.some((p) => lower.includes(p));
+        });
+
+        // Prefer editorial/news emails
+        const preferredPrefixes = [
+          'news', 'editor', 'tips', 'contact', 'info', 'press',
+          'editorial', 'newsroom', 'desk', 'feedback', 'hello',
+        ];
+
+        const preferred = contactEmails.find((email) =>
+          preferredPrefixes.some((p) => email.toLowerCase().startsWith(p))
+        );
+
+        const foundEmail = preferred || contactEmails[0] || null;
+        if (foundEmail) {
+          clearTimeout(timeout);
+          return foundEmail;
+        }
+      } catch {
+        // Try next URL
+      }
+    }
+
     clearTimeout(timeout);
-    if (!response.ok) return null;
-    const html = await response.text();
-    const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
-    const emails = html.match(emailRegex) || [];
-    const skipPatterns = [
-      'noreply', 'no-reply', 'donotreply', 'unsubscribe', 'privacy',
-      'example.com', 'sentry.io', 'wixpress.com', 'cloudflare',
-      '.png', '.jpg', '.gif', '.svg', '.css', '.js',
-    ];
-    const contactEmails = emails.filter((email) => {
-      const lower = email.toLowerCase();
-      return !skipPatterns.some((p) => lower.includes(p));
-    });
-    const preferredPrefixes = [
-      'news', 'editor', 'tips', 'contact', 'info', 'press',
-      'editorial', 'newsroom', 'desk', 'feedback', 'hello',
-    ];
-    const preferred = contactEmails.find((email) =>
-      preferredPrefixes.some((p) => email.toLowerCase().startsWith(p))
-    );
-    return preferred || contactEmails[0] || null;
+    return null;
   } catch {
     return null;
   }
@@ -107,78 +135,106 @@ function cleanName(title: string): string {
   return name || title;
 }
 
-async function discoverOutletsForMarket(market: string): Promise<DiscoveredOutlet[]> {
+function getHomepage(url: string): string {
+  try {
+    const parsed = new URL(url);
+    return `${parsed.protocol}//${parsed.hostname}`;
+  } catch {
+    return url;
+  }
+}
+
+async function discoverOutletsForMarket(market: string): Promise<{ outlets: DiscoveredOutlet[]; searchesUsed: number; errors: string[] }> {
   const discovered: DiscoveredOutlet[] = [];
   const seenDomains = new Set<string>();
+  const errors: string[] = [];
+  let searchesUsed = 0;
 
+  const hasSerperKey = !!process.env.SERPER_API_KEY;
+  if (!hasSerperKey) {
+    return { outlets: [], searchesUsed: 0, errors: ['SERPER_API_KEY environment variable is not set. Get a free key at serper.dev and add it to your Vercel environment variables.'] };
+  }
+
+  // Fewer, more targeted searches to conserve API credits
   const searches: { query: string; type: DiscoveredOutlet['type'] }[] = [
-    { query: `${market} local news outlet website`, type: 'local_news' },
-    { query: `${market} local newspaper`, type: 'local_news' },
-    { query: `${market} TV news station`, type: 'local_news' },
-    { query: `${market} business journal news`, type: 'local_news' },
-    { query: `${market} real estate news publication`, type: 'real_estate_publication' },
-    { query: `${market} real estate magazine`, type: 'real_estate_publication' },
-    { query: `${market} housing market news site`, type: 'real_estate_publication' },
-    { query: `${market} real estate agent blog`, type: 'realtor_blog' },
-    { query: `${market} real estate brokerage blog`, type: 'realtor_blog' },
-    { query: `${market} realtor blog`, type: 'realtor_blog' },
+    { query: `"${market}" local news newspaper TV station`, type: 'local_news' },
+    { query: `"${market}" local newspaper website`, type: 'local_news' },
+    { query: `"${market}" real estate news publication magazine`, type: 'real_estate_publication' },
+    { query: `"${market}" real estate agent blog brokerage`, type: 'realtor_blog' },
+    { query: `"${market}" real estate blog`, type: 'realtor_blog' },
   ];
 
   for (const search of searches) {
-    const results = await searchWeb(search.query);
-    for (const result of results.slice(0, 5)) {
+    searchesUsed++;
+    const results = await searchSerper(search.query);
+
+    if (results.length === 0) {
+      errors.push(`No results for: ${search.query}`);
+    }
+
+    for (const result of results.slice(0, 8)) {
       const domain = getDomain(result.url);
       if (seenDomains.has(domain)) continue;
       seenDomains.add(domain);
-      let homepageUrl: string;
-      try {
-        const parsed = new URL(result.url);
-        homepageUrl = `${parsed.protocol}//${parsed.hostname}`;
-      } catch {
-        homepageUrl = result.url;
-      }
+
       discovered.push({
         name: cleanName(result.title),
-        url: homepageUrl,
+        url: getHomepage(result.url),
         email: null,
         type: search.type,
         description: result.snippet.substring(0, 200) || null,
       });
     }
-    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    // Small delay between API calls
+    await new Promise((resolve) => setTimeout(resolve, 100));
   }
 
-  // Try to extract emails for top results
-  const emailTasks = discovered.slice(0, 15).map(async (outlet, idx) => {
-    await new Promise((resolve) => setTimeout(resolve, idx * 200));
-    const email = await extractEmail(outlet.url);
-    if (email) discovered[idx].email = email;
+  // Try to extract emails for discovered outlets (limit to avoid timeouts)
+  const emailTasks = discovered.slice(0, 12).map(async (outlet, idx) => {
+    try {
+      const email = await extractEmail(outlet.url);
+      if (email) discovered[idx].email = email;
+    } catch {
+      // Skip email extraction failures
+    }
   });
   await Promise.allSettled(emailTasks);
 
-  return discovered;
+  return { outlets: discovered, searchesUsed, errors };
 }
 
-// GET: returns all unique markets from CityData
+// GET: returns all unique markets from CityData + checks if API key is configured
 export async function GET(request: NextRequest) {
   try {
     const token = getAuthToken(request);
     if (!token || !verifyToken(token)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    const hasApiKey = !!process.env.SERPER_API_KEY;
+
     const cities = await prisma.cityData.findMany({
       select: { city: true, state: true },
       distinct: ['city'],
       orderBy: { city: 'asc' },
     });
     const markets = cities.map((c) => (c.state ? `${c.city}, ${c.state}` : c.city));
+
     const existingCounts = await prisma.mediaOutlet.groupBy({
       by: ['market'],
       _count: { id: true },
     });
     const countMap: Record<string, number> = {};
     existingCounts.forEach((g) => { countMap[g.market] = g._count.id; });
-    return NextResponse.json({ markets, existingCounts: countMap, total: markets.length });
+
+    return NextResponse.json({
+      markets,
+      existingCounts: countMap,
+      total: markets.length,
+      hasApiKey,
+      searchProvider: hasApiKey ? 'serper' : 'none',
+    });
   } catch (error) {
     console.error('Error fetching markets:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -192,11 +248,13 @@ export async function POST(request: NextRequest) {
     if (!token || !verifyToken(token)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
     const { market, autoSave } = await request.json();
     if (!market) {
       return NextResponse.json({ error: 'Market is required' }, { status: 400 });
     }
-    const discovered = await discoverOutletsForMarket(market);
+
+    const { outlets: discovered, searchesUsed, errors } = await discoverOutletsForMarket(market);
 
     if (autoSave && discovered.length > 0) {
       const existing = await prisma.mediaOutlet.findMany({
@@ -205,14 +263,19 @@ export async function POST(request: NextRequest) {
       });
       const existingUrls = new Set(existing.map((e) => getDomain(e.url)));
       let savedCount = 0;
+
       for (const outlet of discovered) {
         const domain = getDomain(outlet.url);
         if (!existingUrls.has(domain)) {
           try {
             await prisma.mediaOutlet.create({
               data: {
-                name: outlet.name, url: outlet.url, email: outlet.email,
-                type: outlet.type, market, description: outlet.description,
+                name: outlet.name,
+                url: outlet.url,
+                email: outlet.email,
+                type: outlet.type,
+                market,
+                description: outlet.description,
               },
             });
             existingUrls.add(domain);
@@ -222,12 +285,25 @@ export async function POST(request: NextRequest) {
           }
         }
       }
+
       return NextResponse.json({
-        market, discovered: discovered.length, saved: savedCount,
-        skippedDuplicates: discovered.length - savedCount, outlets: discovered,
+        market,
+        discovered: discovered.length,
+        saved: savedCount,
+        skippedDuplicates: discovered.length - savedCount,
+        searchesUsed,
+        errors,
+        outlets: discovered,
       });
     }
-    return NextResponse.json({ market, discovered: discovered.length, outlets: discovered });
+
+    return NextResponse.json({
+      market,
+      discovered: discovered.length,
+      searchesUsed,
+      errors,
+      outlets: discovered,
+    });
   } catch (error) {
     console.error('Error crawling market:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

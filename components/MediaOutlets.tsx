@@ -59,6 +59,7 @@ export default function MediaOutlets() {
   const [crawlExistingCounts, setCrawlExistingCounts] = useState<Record<string, number>>({});
   const [crawlResults, setCrawlResults] = useState<CrawlMarketResult[]>([]);
   const [crawlLoadingMarkets, setCrawlLoadingMarkets] = useState(false);
+  const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
   const crawlPauseRef = useRef(false);
   const resultsEndRef = useRef<HTMLDivElement>(null);
 
@@ -96,6 +97,7 @@ export default function MediaOutlets() {
       const data = await response.json();
       setCrawlMarkets(data.markets || []);
       setCrawlExistingCounts(data.existingCounts || {});
+      setHasApiKey(data.hasApiKey ?? false);
     } catch (error) {
       console.error('Error fetching markets:', error);
       alert('Error fetching markets list.');
@@ -228,8 +230,25 @@ export default function MediaOutlets() {
           )}
         </div>
 
+        {/* API key warning */}
+        {hasApiKey === false && (
+          <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <p className="text-sm font-medium text-yellow-800">Search API key not configured</p>
+            <p className="text-sm text-yellow-700 mt-1">
+              To crawl markets, you need a free Serper.dev API key:
+            </p>
+            <ol className="text-sm text-yellow-700 mt-2 list-decimal list-inside space-y-1">
+              <li>Go to <a href="https://serper.dev" target="_blank" rel="noopener noreferrer" className="underline font-medium">serper.dev</a> and sign up (free - 2,500 searches)</li>
+              <li>Copy your API key from the dashboard</li>
+              <li>In Vercel, go to Settings &rarr; Environment Variables</li>
+              <li>Add <code className="bg-yellow-100 px-1 rounded font-mono text-xs">SERPER_API_KEY</code> with your key</li>
+              <li>Redeploy the project</li>
+            </ol>
+          </div>
+        )}
+
         {/* Market count + action buttons */}
-        {crawlMarkets.length > 0 && !crawlRunning && crawlResults.length === 0 && (
+        {crawlMarkets.length > 0 && hasApiKey && !crawlRunning && crawlResults.length === 0 && (
           <div className="space-y-3">
             <div className="flex items-center gap-4 text-sm text-gray-600">
               <span className="font-medium text-gray-900">{crawlMarkets.length} markets</span>
