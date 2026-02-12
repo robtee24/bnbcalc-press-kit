@@ -9,6 +9,7 @@ import Ads from '@/components/Ads';
 import Rankings from '@/components/Rankings';
 import RankingDetail from '@/components/RankingDetail';
 import AdPerformance from '@/components/AdPerformance';
+import AdsAccessGate from '@/components/AdsAccessGate';
 
 export default function Home() {
   const [activeModule, setActiveModule] = useState<string | null>(null);
@@ -96,9 +97,21 @@ export default function Home() {
         )}
         {activeModule === 'images' && <Media type="image" />}
         {activeModule === 'videos' && <Media type="video" />}
-        {activeModule === 'ads-images' && <Ads type="image" />}
-        {activeModule === 'ads-videos' && <Ads type="video" />}
-        {activeModule === 'ads-performance' && <AdPerformance />}
+        {activeModule === 'ads-images' && (
+          <AdsAccessGate>
+            <Ads type="image" />
+          </AdsAccessGate>
+        )}
+        {activeModule === 'ads-videos' && (
+          <AdsAccessGate>
+            <Ads type="video" />
+          </AdsAccessGate>
+        )}
+        {activeModule === 'ads-performance' && (
+          <AdsAccessGate>
+            <AdPerformance />
+          </AdsAccessGate>
+        )}
         {activeModule === 'rankings' && !selectedMetric && (
           <Rankings onSelectMetric={handleSelectMetric} />
         )}

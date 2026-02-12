@@ -5,6 +5,7 @@ import PastPressAdmin from './PastPressAdmin';
 import CityDataAdmin from './CityDataAdmin';
 import MediaAdmin from './MediaAdmin';
 import AdsAdmin from './AdsAdmin';
+import AdsPasswordGate, { ADS_ADMIN_UNLOCKED_STORAGE_KEY } from './AdsPasswordGate';
 
 interface AdminDashboardProps {
   onLogout: () => void;
@@ -13,6 +14,15 @@ interface AdminDashboardProps {
 export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [activeTab, setActiveTab] = useState<'past-press' | 'city-data' | 'media' | 'ads'>('past-press');
 
+  const handleLogoutClick = () => {
+    try {
+      sessionStorage.removeItem(ADS_ADMIN_UNLOCKED_STORAGE_KEY);
+    } catch {
+      // ignore storage failures
+    }
+    onLogout();
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm border-b">
@@ -20,7 +30,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
           <div className="flex justify-between items-center">
             <h1 className="text-2xl font-bold">Admin Dashboard</h1>
             <button
-              onClick={onLogout}
+              onClick={handleLogoutClick}
               className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
             >
               Logout
@@ -78,7 +88,11 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
         {activeTab === 'past-press' && <PastPressAdmin />}
         {activeTab === 'city-data' && <CityDataAdmin />}
         {activeTab === 'media' && <MediaAdmin />}
-        {activeTab === 'ads' && <AdsAdmin />}
+        {activeTab === 'ads' && (
+          <AdsPasswordGate>
+            <AdsAdmin />
+          </AdsPasswordGate>
+        )}
       </div>
     </div>
   );
