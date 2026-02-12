@@ -80,3 +80,18 @@ model AdPerformanceMapping {
   @@index([mediaId])
 }
 
+model MediaOutlet {
+  id          String   @id @default(cuid())
+  name        String
+  url         String
+  email       String?
+  type        String   // "local_news", "real_estate_publication", "realtor_blog"
+  market      String   // City/market name, e.g. "Austin, TX"
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([market])
+  @@index([type])
+}
+

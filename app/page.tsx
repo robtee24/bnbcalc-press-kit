@@ -10,6 +10,7 @@ import Rankings from '@/components/Rankings';
 import RankingDetail from '@/components/RankingDetail';
 import AdPerformance from '@/components/AdPerformance';
 import AdsAccessGate from '@/components/AdsAccessGate';
+import MediaOutlets from '@/components/MediaOutlets';
 
 export default function Home() {
   const [activeModule, setActiveModule] = useState<string | null>(null);
@@ -86,6 +87,11 @@ export default function Home() {
         onToggleExpand={toggleExpand}
       />
       <main className="flex-1 overflow-y-auto p-8">
+        {activeModule === 'media-outlets' && (
+          <AdsAccessGate>
+            <MediaOutlets />
+          </AdsAccessGate>
+        )}
         {activeModule === 'national-news' && <PastPress category="national" />}
         {activeModule === 'local-news' && <PastPress category="local" />}
         {activeModule === 'search-by-city' && (

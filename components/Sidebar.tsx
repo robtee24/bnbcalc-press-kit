@@ -26,6 +26,18 @@ export default function Sidebar({
           <h1 className="text-2xl font-bold text-gray-900">Press Kit</h1>
         </div>
         <nav className="space-y-2">
+          {/* Media Outlets */}
+          <button
+            onClick={() => onMenuClick('media-outlets')}
+            className={`w-full text-left px-4 py-2 rounded text-xs font-semibold uppercase ${
+              activeModule === 'media-outlets' 
+                ? 'bg-blue-100 text-blue-700' 
+                : 'text-gray-700 hover:bg-gray-100'
+            }`}
+          >
+            Media Outlets
+          </button>
+
           {/* Past Press - Parent */}
           <div>
             <button

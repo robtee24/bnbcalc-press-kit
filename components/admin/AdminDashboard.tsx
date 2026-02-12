@@ -6,13 +6,14 @@ import CityDataAdmin from './CityDataAdmin';
 import MediaAdmin from './MediaAdmin';
 import AdsAdmin from './AdsAdmin';
 import AdsPasswordGate, { ADS_ADMIN_UNLOCKED_STORAGE_KEY } from './AdsPasswordGate';
+import MediaOutletsAdmin from './MediaOutletsAdmin';
 
 interface AdminDashboardProps {
   onLogout: () => void;
 }
 
 export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
-  const [activeTab, setActiveTab] = useState<'past-press' | 'city-data' | 'media' | 'ads'>('past-press');
+  const [activeTab, setActiveTab] = useState<'past-press' | 'city-data' | 'media' | 'ads' | 'media-outlets'>('past-press');
 
   const handleLogoutClick = () => {
     try {
@@ -73,6 +74,16 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
               Media
             </button>
             <button
+              onClick={() => setActiveTab('media-outlets')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'media-outlets'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Media Outlets
+            </button>
+            <button
               onClick={() => setActiveTab('ads')}
               className={`py-4 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'ads'
@@ -88,6 +99,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
         {activeTab === 'past-press' && <PastPressAdmin />}
         {activeTab === 'city-data' && <CityDataAdmin />}
         {activeTab === 'media' && <MediaAdmin />}
+        {activeTab === 'media-outlets' && <MediaOutletsAdmin />}
         {activeTab === 'ads' && (
           <AdsPasswordGate>
             <AdsAdmin />
