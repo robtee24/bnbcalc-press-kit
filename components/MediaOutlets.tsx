@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import LoadingIcon from './LoadingIcon';
 
 interface MediaOutlet {
@@ -11,6 +11,14 @@ interface MediaOutlet {
   type: string;
   market: string;
   description: string | null;
+}
+
+interface CrawlMarketResult {
+  market: string;
+  discovered: number;
+  saved: number;
+  status: 'pending' | 'crawling' | 'done' | 'error';
+  error?: string;
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -45,9 +53,25 @@ export default function MediaOutlets() {
   const [searchMarket, setSearchMarket] = useState('');
   const [markets, setMarkets] = useState<string[]>([]);
 
+  // Crawl state
+  const [crawlRunning, setCrawlRunning] = useState(false);
+  const [crawlMarkets, setCrawlMarkets] = useState<string[]>([]);
+  const [crawlExistingCounts, setCrawlExistingCounts] = useState<Record<string, number>>({});
+  const [crawlResults, setCrawlResults] = useState<CrawlMarketResult[]>([]);
+  const [crawlLoadingMarkets, setCrawlLoadingMarkets] = useState(false);
+  const crawlPauseRef = useRef(false);
+  const resultsEndRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     fetchOutlets();
   }, []);
+
+  // Auto-scroll to bottom of results as they come in
+  useEffect(() => {
+    if (crawlRunning && resultsEndRef.current) {
+      resultsEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [crawlResults, crawlRunning]);
 
   const fetchOutlets = async () => {
     try {
@@ -63,6 +87,101 @@ export default function MediaOutlets() {
       setLoading(false);
     }
   };
+
+  const fetchCrawlMarkets = async () => {
+    setCrawlLoadingMarkets(true);
+    try {
+      const response = await fetch('/api/media-outlets/crawl');
+      if (!response.ok) throw new Error('Failed to fetch markets');
+      const data = await response.json();
+      setCrawlMarkets(data.markets || []);
+      setCrawlExistingCounts(data.existingCounts || {});
+    } catch (error) {
+      console.error('Error fetching markets:', error);
+      alert('Error fetching markets list.');
+    } finally {
+      setCrawlLoadingMarkets(false);
+    }
+  };
+
+  const startCrawl = async (onlyNew: boolean) => {
+    let targetMarkets = crawlMarkets;
+    if (onlyNew) {
+      targetMarkets = crawlMarkets.filter((m) => !crawlExistingCounts[m]);
+    }
+    if (targetMarkets.length === 0) {
+      alert('No markets to crawl.');
+      return;
+    }
+
+    setCrawlRunning(true);
+    crawlPauseRef.current = false;
+
+    // Initialize all results as pending
+    setCrawlResults(
+      targetMarkets.map((m) => ({ market: m, discovered: 0, saved: 0, status: 'pending' }))
+    );
+
+    for (let i = 0; i < targetMarkets.length; i++) {
+      if (crawlPauseRef.current) {
+        setCrawlRunning(false);
+        return;
+      }
+
+      const market = targetMarkets[i];
+
+      // Mark current as crawling
+      setCrawlResults((prev) =>
+        prev.map((r, idx) => (idx === i ? { ...r, status: 'crawling' } : r))
+      );
+
+      try {
+        const response = await fetch('/api/media-outlets/crawl', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ market, autoSave: true }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setCrawlResults((prev) =>
+            prev.map((r, idx) =>
+              idx === i
+                ? { ...r, status: 'done', discovered: data.discovered, saved: data.saved }
+                : r
+            )
+          );
+        } else {
+          setCrawlResults((prev) =>
+            prev.map((r, idx) =>
+              idx === i ? { ...r, status: 'error', error: `HTTP ${response.status}` } : r
+            )
+          );
+        }
+      } catch (error) {
+        setCrawlResults((prev) =>
+          prev.map((r, idx) =>
+            idx === i ? { ...r, status: 'error', error: String(error) } : r
+          )
+        );
+      }
+
+      // Small delay between markets
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+
+    setCrawlRunning(false);
+    fetchOutlets(); // Refresh the outlets list with new data
+  };
+
+  const stopCrawl = () => {
+    crawlPauseRef.current = true;
+  };
+
+  const completedCount = crawlResults.filter((r) => r.status === 'done' || r.status === 'error').length;
+  const totalSaved = crawlResults.reduce((a, r) => a + r.saved, 0);
+  const totalDiscovered = crawlResults.reduce((a, r) => a + r.discovered, 0);
+  const progressPercent = crawlResults.length > 0 ? (completedCount / crawlResults.length) * 100 : 0;
 
   const filteredOutlets = outlets.filter((o) => {
     if (selectedType && o.type !== selectedType) return false;
@@ -88,6 +207,154 @@ export default function MediaOutlets() {
   return (
     <div>
       <h1 className="text-3xl font-bold mb-6">Media Outlets &amp; Publications</h1>
+
+      {/* Crawl Markets Section */}
+      <div className="mb-8 bg-white rounded-lg shadow-md p-6 border border-gray-200">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-semibold">Discover Publications</h2>
+            <p className="text-sm text-gray-500">
+              Crawl all markets in the database to find local news, real estate publications, and blogs.
+            </p>
+          </div>
+          {!crawlRunning && crawlMarkets.length === 0 && (
+            <button
+              onClick={fetchCrawlMarkets}
+              disabled={crawlLoadingMarkets}
+              className="px-5 py-2.5 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50 font-medium text-sm transition-colors"
+            >
+              {crawlLoadingMarkets ? 'Loading Markets...' : 'Load Markets'}
+            </button>
+          )}
+        </div>
+
+        {/* Market count + action buttons */}
+        {crawlMarkets.length > 0 && !crawlRunning && crawlResults.length === 0 && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-4 text-sm text-gray-600">
+              <span className="font-medium text-gray-900">{crawlMarkets.length} markets</span>
+              <span>{Object.keys(crawlExistingCounts).length} already have outlets</span>
+              <span>{crawlMarkets.filter((m) => !crawlExistingCounts[m]).length} new</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => startCrawl(false)}
+                className="px-5 py-2.5 bg-orange-500 text-white rounded-lg hover:bg-orange-600 font-medium text-sm transition-colors"
+              >
+                Crawl All {crawlMarkets.length} Markets
+              </button>
+              <button
+                onClick={() => startCrawl(true)}
+                className="px-5 py-2.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-medium text-sm transition-colors"
+              >
+                Crawl Only New Markets ({crawlMarkets.filter((m) => !crawlExistingCounts[m]).length})
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Progress bar + stop button */}
+        {(crawlRunning || crawlResults.length > 0) && (
+          <div className="space-y-4">
+            {/* Stats row */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4 text-sm">
+                <span className="font-medium">
+                  {completedCount} / {crawlResults.length} markets
+                </span>
+                <span className="text-green-600">{totalSaved} saved</span>
+                <span className="text-gray-500">{totalDiscovered} discovered</span>
+              </div>
+              {crawlRunning ? (
+                <button
+                  onClick={stopCrawl}
+                  className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 text-sm font-medium transition-colors"
+                >
+                  Stop Crawl
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    setCrawlResults([]);
+                    fetchCrawlMarkets();
+                  }}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm font-medium transition-colors"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+
+            {/* Progress bar */}
+            <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+              <div
+                className={`h-4 rounded-full transition-all duration-500 ease-out ${
+                  crawlRunning ? 'bg-orange-500' : 'bg-green-500'
+                }`}
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+
+            {/* Results table */}
+            <div className="max-h-96 overflow-y-auto border border-gray-200 rounded-lg">
+              <table className="min-w-full divide-y divide-gray-200 text-sm">
+                <thead className="bg-gray-50 sticky top-0">
+                  <tr>
+                    <th className="px-4 py-2 text-left font-medium text-gray-500">#</th>
+                    <th className="px-4 py-2 text-left font-medium text-gray-500">Market</th>
+                    <th className="px-4 py-2 text-left font-medium text-gray-500">Status</th>
+                    <th className="px-4 py-2 text-right font-medium text-gray-500">Found</th>
+                    <th className="px-4 py-2 text-right font-medium text-gray-500">Saved</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {crawlResults.map((result, idx) => (
+                    <tr
+                      key={result.market}
+                      className={
+                        result.status === 'crawling'
+                          ? 'bg-orange-50'
+                          : result.status === 'error'
+                          ? 'bg-red-50'
+                          : result.status === 'done'
+                          ? 'bg-green-50/50'
+                          : ''
+                      }
+                    >
+                      <td className="px-4 py-2 text-gray-400">{idx + 1}</td>
+                      <td className="px-4 py-2 font-medium text-gray-900">{result.market}</td>
+                      <td className="px-4 py-2">
+                        {result.status === 'pending' && (
+                          <span className="text-gray-400">Waiting...</span>
+                        )}
+                        {result.status === 'crawling' && (
+                          <span className="text-orange-600 font-medium flex items-center gap-1">
+                            <span className="inline-block w-2 h-2 bg-orange-500 rounded-full animate-pulse" />
+                            Crawling...
+                          </span>
+                        )}
+                        {result.status === 'done' && (
+                          <span className="text-green-600 font-medium">Done</span>
+                        )}
+                        {result.status === 'error' && (
+                          <span className="text-red-600 font-medium" title={result.error}>Error</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2 text-right text-gray-700">
+                        {result.status === 'done' || result.status === 'error' ? result.discovered : ''}
+                      </td>
+                      <td className="px-4 py-2 text-right font-medium text-green-700">
+                        {result.status === 'done' ? result.saved : ''}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div ref={resultsEndRef} />
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Market filter */}
       <div className="mb-6">
@@ -128,8 +395,8 @@ export default function MediaOutlets() {
         })}
       </div>
 
-      {outlets.length === 0 ? (
-        <p className="text-gray-600">No media outlets have been added yet.</p>
+      {outlets.length === 0 && crawlResults.length === 0 ? (
+        <p className="text-gray-600">No media outlets have been added yet. Use the Discover section above to crawl all markets.</p>
       ) : filteredOutlets.length === 0 ? (
         <p className="text-gray-600">No outlets found for the selected filters.</p>
       ) : (
