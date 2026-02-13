@@ -620,7 +620,7 @@ export default function SearchByCity({ initialCity, showBackButton, onBack }: Se
                 </button>
               </div>
               <div
-                className="prose prose-lg max-w-none text-gray-800 leading-relaxed [&_a]:text-blue-600 [&_a]:underline [&_a:hover]:text-blue-800"
+                className="prose prose-lg max-w-none text-gray-800 leading-relaxed [&_a]:text-blue-600 [&_a]:underline [&_a:hover]:text-blue-800 [&_h1]:text-3xl [&_h1]:font-bold [&_h1]:leading-tight [&_h1]:mb-6 [&_h1]:text-gray-900"
                 dangerouslySetInnerHTML={{
                   __html: newsArticle
                     .replace(/\n\n/g, '</p><p class="mb-4">')
@@ -633,7 +633,7 @@ export default function SearchByCity({ initialCity, showBackButton, onBack }: Se
                 <button
                   onClick={() => {
                     const plain = newsArticle
-                      .replace(/<h2>(.*?)<\/h2>/g, '$1\n\n')
+                      .replace(/<h1>(.*?)<\/h1>/g, '$1\n\n')
                       .replace(/<strong>(.*?)<\/strong>/g, '$1')
                       .replace(/<a[^>]*href="([^"]*)"[^>]*>(.*?)<\/a>/g, '$2 ($1)')
                       .replace(/<[^>]*>/g, '')
@@ -648,7 +648,7 @@ export default function SearchByCity({ initialCity, showBackButton, onBack }: Se
                 <button
                   onClick={() => {
                     const plain = newsArticle
-                      .replace(/<h2>(.*?)<\/h2>/g, '$1\n\n')
+                      .replace(/<h1>(.*?)<\/h1>/g, '$1\n\n')
                       .replace(/<strong>(.*?)<\/strong>/g, '$1')
                       .replace(/<a[^>]*href="([^"]*)"[^>]*>(.*?)<\/a>/g, '$2 ($1)')
                       .replace(/<[^>]*>/g, '')

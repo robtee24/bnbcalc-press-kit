@@ -87,16 +87,16 @@ function generateNewsArticle(data: any, avg: any, totalMarkets: number, variant:
   // ============================================
   if (v === 0) {
     if (best.rank <= 10) {
-      headline = `${cityName} Cracks the Top 10 for Short-Term Rental ${capitalize(best.label)}, Signaling Strength in Local Housing Market`;
+      headline = `${cityName} Is Now a Top-10 Airbnb Market in America — Here's What That Means for Local Real Estate`;
       leadParagraph = `${market} has landed the ${ordinal(best.rank)} spot nationally for ${best.label} among short-term rental markets, according to new data from ${BNBCALC_DESC} that tracks performance across hundreds of U.S. metros. The number puts ${cityName} ahead of the vast majority of markets and raises fresh questions about what's driving demand in the area — and what it means for homeowners, investors, and the broader real estate picture.`;
     } else if (best.rank <= 25) {
-      headline = `${cityName} Ranks Among the Top 25 U.S. Markets for Short-Term Rental Performance`;
+      headline = `${cityName} Quietly Became One of America's Hottest Short-Term Rental Markets`;
       leadParagraph = `New data out of ${BNBCALC_DESC}'s ${year} market rankings places ${market} at No. ${best.rank} nationally for ${best.label}, putting it firmly in the top tier of short-term rental markets across the country. For a metro that doesn't always make national real estate headlines, the ranking is worth a closer look.`;
     } else if (best.rank <= 50) {
-      headline = `What ${cityName}'s Short-Term Rental Numbers Say About Its Real Estate Market`;
+      headline = `The Surprising Airbnb Data That Shows ${cityName}'s Real Estate Market Is Stronger Than You Think`;
       leadParagraph = `${market} may not be the first city that comes to mind when people talk about booming Airbnb markets, but data from ${BNBCALC_DESC} tells an interesting story. The metro ranks ${ordinal(best.rank)} nationally in ${best.label} — and when you dig into the rest of the numbers, a picture starts to form of a market with real momentum.`;
     } else {
-      headline = `${cityName}'s Short-Term Rental Market: What the Numbers Reveal About Local Real Estate`;
+      headline = `What ${cityName}'s Short-Term Rental Boom Tells Us About the Future of Its Housing Market`;
       leadParagraph = `Every housing market has a story to tell, and ${market}'s short-term rental data offers a window into what's happening on the ground. ${BNBCALC_DESC}'s ${year} rankings place the metro at ${ordinal(best.rank)} for ${best.label}, but the full picture is more nuanced than any single number suggests.`;
     }
 
@@ -131,13 +131,13 @@ function generateNewsArticle(data: any, avg: any, totalMarkets: number, variant:
   // ============================================
   if (v === 1) {
     if (best.rank <= 25) {
-      headline = `Strong Airbnb Numbers in ${cityName} Point to a Healthy Real Estate Market`;
+      headline = `${cityName}'s Airbnb Boom Is Reshaping the Local Real Estate Landscape`;
       leadParagraph = `Real estate investors have been watching ${market} closely, and the latest short-term rental data gives them plenty to talk about. According to ${BNBCALC_DESC}, the ${cityName} metro ranks ${ordinal(best.rank)} in the nation for ${best.label} — a number that reflects more than just vacation rental performance. It speaks to the underlying strength of the local property market itself.`;
     } else if (best.rank <= 50) {
-      headline = `How ${cityName}'s Airbnb Market Reflects the Health of Local Real Estate`;
+      headline = `Behind the Numbers: Why ${cityName}'s Short-Term Rental Surge Matters for Every Homeowner`;
       leadParagraph = `There's a reason real estate analysts pay attention to short-term rental numbers, and ${market}'s latest figures from ${BNBCALC_DESC} are a case in point. Ranking ${ordinal(best.rank)} nationally for ${best.label}, the metro's performance offers a useful lens into what's happening in the broader housing market.`;
     } else {
-      headline = `${cityName} Real Estate: What Short-Term Rental Data Tells Us About the Local Market`;
+      headline = `The Hidden Signal in ${cityName}'s Housing Market That Investors Are Watching Closely`;
       leadParagraph = `Short-term rental data has become one of the more reliable barometers for local real estate health, and ${market}'s numbers — tracked by ${BNBCALC_DESC} — paint a nuanced picture. The metro sits at ${ordinal(best.rank)} nationally for ${best.label}, with additional data points that round out the story.`;
     }
 
@@ -181,13 +181,13 @@ function generateNewsArticle(data: any, avg: any, totalMarkets: number, variant:
   // ============================================
   if (v === 2) {
     if (best.rank <= 25) {
-      headline = `The Numbers Behind ${cityName}'s Rise as a Top Short-Term Rental Market`;
+      headline = `${cityName} Climbs the National Rankings — and the Data Backs Up the Hype`;
       leadParagraph = `Investors hunting for the next strong Airbnb market might want to look at ${market}. Data published by ${BNBCALC_DESC} ranks the metro ${ordinal(best.rank)} in the country for ${best.label}${second ? ` and ${ordinal(second.rank)} for ${second.label}` : ''} — figures that position it as one of the more compelling opportunities in the current landscape.`;
     } else if (best.rank <= 50) {
-      headline = `${cityName} by the Numbers: A Closer Look at the Local Short-Term Rental Market`;
+      headline = `Why Smart Money Is Paying Attention to ${cityName}'s Short-Term Rental Numbers`;
       leadParagraph = `For anyone trying to gauge the health of ${cityName}'s real estate market, the latest short-term rental data from ${BNBCALC_DESC} offers a useful snapshot. At ${ordinal(best.rank)} nationally for ${best.label}, the metro isn't leading the pack, but the details under the surface are more interesting than the headline number.`;
     } else {
-      headline = `Inside ${cityName}'s Short-Term Rental Market: A Data-Driven Look`;
+      headline = `Overlooked No More: The Data That Puts ${cityName} on the Real Estate Investment Map`;
       leadParagraph = `Data from ${BNBCALC_DESC} reveals where ${market} stands among the nation's short-term rental markets in ${year}. The metro's ${ordinal(best.rank)} ranking for ${best.label} is a starting point — but the more telling story lives in the combination of metrics that define what's actually happening on the ground.`;
     }
 
@@ -212,7 +212,7 @@ function generateNewsArticle(data: any, avg: any, totalMarkets: number, variant:
     body += buildBiggerPicture(cityName, data, year);
   }
 
-  const article = `<h2>${headline}</h2>\n\n${leadParagraph}\n\n${body}`;
+  const article = `<h1>${headline}</h1>\n\n${leadParagraph}\n\n${body}`;
   return article;
 }
 
