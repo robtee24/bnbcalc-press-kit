@@ -19,6 +19,10 @@ interface CrawlMarketResult {
   saved: number;
   status: 'pending' | 'crawling' | 'done' | 'error';
   error?: string;
+  errors?: string[];
+  newsCount?: number;
+  reCount?: number;
+  blogCount?: number;
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -146,17 +150,22 @@ export default function MediaOutlets() {
 
         if (response.ok) {
           const data = await response.json();
+          const outlets = data.outlets || [];
+          const newsCount = outlets.filter((o: { type: string }) => o.type === 'local_news').length;
+          const reCount = outlets.filter((o: { type: string }) => o.type === 'real_estate_publication').length;
+          const blogCount = outlets.filter((o: { type: string }) => o.type === 'realtor_blog').length;
           setCrawlResults((prev) =>
             prev.map((r, idx) =>
               idx === i
-                ? { ...r, status: 'done', discovered: data.discovered, saved: data.saved }
+                ? { ...r, status: 'done', discovered: data.discovered, saved: data.saved, errors: data.errors, newsCount, reCount, blogCount }
                 : r
             )
           );
         } else {
+          const errData = await response.json().catch(() => ({}));
           setCrawlResults((prev) =>
             prev.map((r, idx) =>
-              idx === i ? { ...r, status: 'error', error: `HTTP ${response.status}` } : r
+              idx === i ? { ...r, status: 'error', error: errData.error || `HTTP ${response.status}` } : r
             )
           );
         }
@@ -315,15 +324,18 @@ export default function MediaOutlets() {
             </div>
 
             {/* Results table */}
-            <div className="max-h-96 overflow-y-auto border border-gray-200 rounded-lg">
+            <div className="max-h-[500px] overflow-y-auto border border-gray-200 rounded-lg">
               <table className="min-w-full divide-y divide-gray-200 text-sm">
-                <thead className="bg-gray-50 sticky top-0">
+                <thead className="bg-gray-50 sticky top-0 z-10">
                   <tr>
-                    <th className="px-4 py-2 text-left font-medium text-gray-500">#</th>
-                    <th className="px-4 py-2 text-left font-medium text-gray-500">Market</th>
-                    <th className="px-4 py-2 text-left font-medium text-gray-500">Status</th>
-                    <th className="px-4 py-2 text-right font-medium text-gray-500">Found</th>
-                    <th className="px-4 py-2 text-right font-medium text-gray-500">Saved</th>
+                    <th className="px-3 py-2 text-left font-medium text-gray-500">#</th>
+                    <th className="px-3 py-2 text-left font-medium text-gray-500">Market</th>
+                    <th className="px-3 py-2 text-left font-medium text-gray-500">Status</th>
+                    <th className="px-3 py-2 text-right font-medium text-blue-600" title="Local News">News</th>
+                    <th className="px-3 py-2 text-right font-medium text-green-600" title="RE Publications">RE Pubs</th>
+                    <th className="px-3 py-2 text-right font-medium text-purple-600" title="Broker Blogs">Blogs</th>
+                    <th className="px-3 py-2 text-right font-medium text-gray-500">Total</th>
+                    <th className="px-3 py-2 text-right font-medium text-gray-500">Saved</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -340,9 +352,9 @@ export default function MediaOutlets() {
                           : ''
                       }
                     >
-                      <td className="px-4 py-2 text-gray-400">{idx + 1}</td>
-                      <td className="px-4 py-2 font-medium text-gray-900">{result.market}</td>
-                      <td className="px-4 py-2">
+                      <td className="px-3 py-2 text-gray-400">{idx + 1}</td>
+                      <td className="px-3 py-2 font-medium text-gray-900">{result.market}</td>
+                      <td className="px-3 py-2">
                         {result.status === 'pending' && (
                           <span className="text-gray-400">Waiting...</span>
                         )}
@@ -359,10 +371,19 @@ export default function MediaOutlets() {
                           <span className="text-red-600 font-medium" title={result.error}>Error</span>
                         )}
                       </td>
-                      <td className="px-4 py-2 text-right text-gray-700">
+                      <td className="px-3 py-2 text-right text-blue-700">
+                        {result.status === 'done' ? (result.newsCount || 0) : ''}
+                      </td>
+                      <td className="px-3 py-2 text-right text-green-700">
+                        {result.status === 'done' ? (result.reCount || 0) : ''}
+                      </td>
+                      <td className="px-3 py-2 text-right text-purple-700">
+                        {result.status === 'done' ? (result.blogCount || 0) : ''}
+                      </td>
+                      <td className="px-3 py-2 text-right text-gray-700">
                         {result.status === 'done' || result.status === 'error' ? result.discovered : ''}
                       </td>
-                      <td className="px-4 py-2 text-right font-medium text-green-700">
+                      <td className="px-3 py-2 text-right font-medium text-green-700">
                         {result.status === 'done' ? result.saved : ''}
                       </td>
                     </tr>

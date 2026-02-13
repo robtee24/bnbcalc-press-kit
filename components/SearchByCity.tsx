@@ -42,6 +42,9 @@ export default function SearchByCity({ initialCity, showBackButton, onBack }: Se
   const [cities, setCities] = useState<string[]>([]);
   const [selectedCity, setSelectedCity] = useState<CityData | null>(null);
   const [pressRelease, setPressRelease] = useState<string | null>(null);
+  const [newsArticle, setNewsArticle] = useState<string | null>(null);
+  const [articleVariant, setArticleVariant] = useState(0);
+  const [articleLoading, setArticleLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingAverages, setLoadingAverages] = useState(true);
   const [averages, setAverages] = useState<Averages | null>(null);
@@ -153,15 +156,47 @@ export default function SearchByCity({ initialCity, showBackButton, onBack }: Se
 
   const generatePressRelease = async (city: string) => {
     try {
-      const response = await fetch('/api/press-release', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ city }),
-      });
-      const data = await response.json();
-      setPressRelease(data.pressRelease);
+      const [prResponse, articleResponse] = await Promise.all([
+        fetch('/api/press-release', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ city }),
+        }),
+        fetch('/api/news-article', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ city, variant: 0 }),
+        }),
+      ]);
+      const prData = await prResponse.json();
+      setPressRelease(prData.pressRelease);
+
+      const articleData = await articleResponse.json();
+      setNewsArticle(articleData.article || null);
+      setArticleVariant(0);
     } catch (error) {
       console.error('Error generating press release:', error);
+    }
+  };
+
+  const rewriteArticle = async () => {
+    if (!selectedCity) return;
+    setArticleLoading(true);
+    try {
+      const nextVariant = articleVariant + 1;
+      const cityName = selectedCity.city;
+      const response = await fetch('/api/news-article', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ city: cityName, variant: nextVariant }),
+      });
+      const data = await response.json();
+      setNewsArticle(data.article || null);
+      setArticleVariant(nextVariant);
+    } catch (error) {
+      console.error('Error rewriting article:', error);
+    } finally {
+      setArticleLoading(false);
     }
   };
 
@@ -455,6 +490,8 @@ export default function SearchByCity({ initialCity, showBackButton, onBack }: Se
               onClick={() => {
                 setSelectedCity(null);
                 setPressRelease(null);
+                setNewsArticle(null);
+                setArticleVariant(0);
                 setSearchTerm('');
               }}
               className="px-4 py-2 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
@@ -566,6 +603,71 @@ export default function SearchByCity({ initialCity, showBackButton, onBack }: Se
               </div>
             );
           })()}
+
+          {newsArticle && (
+            <div className="mt-8 bg-white rounded-lg shadow-md p-6 border-l-4 border-green-500">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <h3 className="text-2xl font-bold">Example News Article</h3>
+                  <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">Version {articleVariant + 1}</span>
+                </div>
+                <button
+                  onClick={rewriteArticle}
+                  disabled={articleLoading}
+                  className="px-4 py-2 bg-orange-500 text-white rounded hover:bg-orange-600 disabled:opacity-50 text-sm font-medium"
+                >
+                  {articleLoading ? 'Rewriting...' : 'Rewrite Article'}
+                </button>
+              </div>
+              <div
+                className="prose prose-lg max-w-none text-gray-800 leading-relaxed [&_a]:text-blue-600 [&_a]:underline [&_a:hover]:text-blue-800"
+                dangerouslySetInnerHTML={{
+                  __html: newsArticle
+                    .replace(/\n\n/g, '</p><p class="mb-4">')
+                    .replace(/\n/g, '<br>')
+                    .replace(/^/, '<p class="mb-4">')
+                    .replace(/$/, '</p>'),
+                }}
+              />
+              <div className="mt-6 flex gap-3">
+                <button
+                  onClick={() => {
+                    const plain = newsArticle
+                      .replace(/<h2>(.*?)<\/h2>/g, '$1\n\n')
+                      .replace(/<strong>(.*?)<\/strong>/g, '$1')
+                      .replace(/<a[^>]*href="([^"]*)"[^>]*>(.*?)<\/a>/g, '$2 ($1)')
+                      .replace(/<[^>]*>/g, '')
+                      .trim();
+                    navigator.clipboard.writeText(plain);
+                    alert('Article copied to clipboard!');
+                  }}
+                  className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+                >
+                  Copy Article
+                </button>
+                <button
+                  onClick={() => {
+                    const plain = newsArticle
+                      .replace(/<h2>(.*?)<\/h2>/g, '$1\n\n')
+                      .replace(/<strong>(.*?)<\/strong>/g, '$1')
+                      .replace(/<a[^>]*href="([^"]*)"[^>]*>(.*?)<\/a>/g, '$2 ($1)')
+                      .replace(/<[^>]*>/g, '')
+                      .trim();
+                    const blob = new Blob([plain], { type: 'text/plain' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${selectedCity?.city || 'market'}-news-article.txt`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                >
+                  Download as Text
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
